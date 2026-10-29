@@ -1,0 +1,41 @@
+{
+  "name": "summary-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Open-source agentic AI reading, summarizing, and research platform across Web, Desktop, Mobile, Browser Extensions, REST OpenAPI, and Model Context Protocol (MCP).",
+  "keywords": [
+    "reader",
+    "summarizer",
+    "ai",
+    "agentic",
+    "mcp",
+    "model-context-protocol",
+    "tts",
+    "karaoke",
+    "annotations",
+    "obsidian",
+    "notion",
+    "roam",
+    "rag",
+    "smry"
+  ],
+  "homepage": "https://github.com/JasonDoug/summary-ai",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JasonDoug/summary-ai.git"
+  },
+  "license": "MIT",
+  "author": "Summary AI Contributors",
+  "packageManager": "pnpm@11.8.0",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "build": "pnpm -r --filter=./packages/* build && pnpm -r --filter=./apps/* build",
+    "test": "node --test packages/*/test/*.test.mjs apps/*/test/*.test.mjs",
+    "start": "node apps/api/src/server.mjs",
+    "dev": "node --watch apps/api/src/server.mjs",
+    "mcp": "node packages/mcp-server/src/index.mjs",
+    "lint": "node scripts/verify-repo.mjs"
+  }
+}

@@ -1,0 +1,76 @@
+lockfileVersion: '9.0'
+
+settings:
+  autoInstallPeers: true
+  excludeLinksFromLockfile: false
+
+importers:
+
+  .: {}
+
+  apps/api:
+    dependencies:
+      '@summary-ai/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@summary-ai/extractor':
+        specifier: workspace:*
+        version: link:../../packages/extractor
+      '@summary-ai/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+
+  apps/desktop:
+    dependencies:
+      '@summary-ai/api':
+        specifier: workspace:*
+        version: link:../api
+      '@summary-ai/mcp-server':
+        specifier: workspace:*
+        version: link:../../packages/mcp-server
+
+  apps/extension: {}
+
+  apps/mobile:
+    dependencies:
+      '@summary-ai/ai':
+        specifier: workspace:*
+        version: link:../../packages/ai
+      '@summary-ai/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+
+  apps/web:
+    dependencies:
+      '@summary-ai/api':
+        specifier: workspace:*
+        version: link:../api
+
+  packages/ai:
+    dependencies:
+      '@summary-ai/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/extractor:
+    dependencies:
+      '@summary-ai/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/mcp-server:
+    dependencies:
+      '@summary-ai/ai':
+        specifier: workspace:*
+        version: link:../ai
+      '@summary-ai/api':
+        specifier: workspace:*
+        version: link:../../apps/api
+      '@summary-ai/extractor':
+        specifier: workspace:*
+        version: link:../extractor
+      '@summary-ai/shared':
+        specifier: workspace:*
+        version: link:../shared
+
+  packages/shared: {}
