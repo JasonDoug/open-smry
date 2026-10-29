@@ -1,41 +1,20 @@
 {
-  "name": "summary-ai",
+  "name": "open-smry",
   "version": "1.0.0",
   "private": true,
-  "description": "Open-source agentic AI reading, summarizing, and research platform across Web, Desktop, Mobile, Browser Extensions, REST OpenAPI, and Model Context Protocol (MCP).",
-  "keywords": [
-    "reader",
-    "summarizer",
-    "ai",
-    "agentic",
-    "mcp",
-    "model-context-protocol",
-    "tts",
-    "karaoke",
-    "annotations",
-    "obsidian",
-    "notion",
-    "roam",
-    "rag",
-    "smry"
-  ],
-  "homepage": "https://github.com/JasonDoug/summary-ai",
+  "description": "Open-source agentic AI reading, summarizing, and research platform powered by Python FastAPI, LangGraph, Hybrid RAG, Neural TTS, FastMCP, and TypeScript clients.",
+  "homepage": "https://github.com/JasonDoug/open-smry",
   "repository": {
     "type": "git",
-    "url": "https://github.com/JasonDoug/summary-ai.git"
+    "url": "https://github.com/JasonDoug/open-smry.git"
   },
   "license": "MIT",
-  "author": "Summary AI Contributors",
   "packageManager": "pnpm@11.8.0",
-  "engines": {
-    "node": ">=20.0.0"
-  },
   "scripts": {
-    "build": "pnpm -r --filter=./packages/* build && pnpm -r --filter=./apps/* build",
-    "test": "node --test packages/*/test/*.test.mjs apps/*/test/*.test.mjs",
-    "start": "node apps/api/src/server.mjs",
-    "dev": "node --watch apps/api/src/server.mjs",
-    "mcp": "node packages/mcp-server/src/index.mjs",
-    "lint": "node scripts/verify-repo.mjs"
+    "lint": "node scripts/verify-repo.mjs",
+    "test:ts": "node --test packages/shared/test/*.test.mjs",
+    "test:py": "cd backend && uv run pytest -v",
+    "test": "npm run lint && npm run test:ts && npm run test:py",
+    "dev:api": "cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
   }
 }

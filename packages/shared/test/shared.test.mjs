@@ -4,6 +4,8 @@ import {
   READER_FONTS,
   HIGHLIGHT_COLORS,
   TTS_VOICES,
+  AI_PROVIDERS,
+  AI_MODELS,
   exportToCopyForLLM,
   filterAnnotations,
   exportKnowledge,
@@ -11,12 +13,17 @@ import {
   findExactPassages
 } from "../src/index.mjs";
 
-test("Sprint 1: READER_FONTS includes 7 fonts including OpenDyslexic", () => {
+test("Sprint 1: READER_FONTS (7 incl. OpenDyslexic), HIGHLIGHT_COLORS (5), TTS_VOICES (10), and AI_PROVIDERS (Claude, GPT, Gemini, OpenRouter, Ollama)", () => {
   assert.equal(READER_FONTS.length, 7);
   const dyslexic = READER_FONTS.find((f) => f.id === "opendyslexic");
   assert.ok(dyslexic, "OpenDyslexic font should be registered");
   assert.equal(HIGHLIGHT_COLORS.length, 5);
   assert.equal(TTS_VOICES.length, 10);
+  assert.equal(AI_PROVIDERS.length, 5);
+  assert.ok(AI_PROVIDERS.some((p) => p.id === "openrouter"));
+  assert.ok(AI_PROVIDERS.some((p) => p.id === "ollama"));
+  assert.ok(AI_MODELS.some((m) => m.provider === "openrouter"));
+  assert.ok(AI_MODELS.some((m) => m.provider === "ollama"));
 });
 
 test("Sprint 1: exportToCopyForLLM produces clean LLM-ready Markdown", () => {

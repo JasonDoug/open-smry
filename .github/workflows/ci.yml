@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test-and-verify:
+  verify-and-test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -18,8 +18,14 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Verify repository structure & lint
-        run: npm run lint
+      - name: Setup Python & uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.13"
 
-      - name: Run unit & integration test suite
+      - name: Sync Python Backend Dependencies
+        working-directory: ./backend
+        run: uv sync
+
+      - name: Run Polyglot Verification & Test Suite
         run: npm test

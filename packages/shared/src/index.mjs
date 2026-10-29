@@ -80,6 +80,44 @@ export const EXTRACTION_SOURCES = [
   { id: "jina", name: "Reader Proxy Mirror", description: "Fetches via markdown reader proxy mirror" }
 ];
 
+export const AI_PROVIDERS = [
+  {
+    id: "claude",
+    name: "Anthropic Claude",
+    type: "cloud",
+    defaultModel: "claude-3-7-sonnet-latest",
+    description: "Anthropic Claude models for nuanced synthesis and citation verification"
+  },
+  {
+    id: "gpt",
+    name: "OpenAI GPT",
+    type: "cloud",
+    defaultModel: "gpt-4o",
+    description: "OpenAI GPT & reasoning models for structured executive summaries"
+  },
+  {
+    id: "gemini",
+    name: "Google Gemini",
+    type: "cloud",
+    defaultModel: "gemini-2.5-pro",
+    description: "Google Gemini models with 1M+ context window for whole books & transcripts"
+  },
+  {
+    id: "openrouter",
+    name: "OpenRouter",
+    type: "aggregator",
+    defaultModel: "openrouter/free",
+    description: "Unified API gateway including the free auto-router (openrouter/free), DeepSeek, Qwen, Llama, Claude, GPT & Gemini"
+  },
+  {
+    id: "ollama",
+    name: "Local AI (Ollama / vLLM / LM Studio)",
+    type: "local",
+    defaultModel: "llama3.2",
+    description: "100% private local inference & local embeddings with live model auto-discovery"
+  }
+];
+
 export const AI_MODELS = [
   {
     id: "claude-3-7-sonnet",
@@ -101,6 +139,41 @@ export const AI_MODELS = [
     name: "Gemini 2.5 Pro",
     badge: "Google",
     description: "Long-context book & research synthesis with rapid recall"
+  },
+  {
+    id: "openrouter/free",
+    provider: "openrouter",
+    name: "OpenRouter Free Router (openrouter/free)",
+    badge: "OpenRouter Free",
+    description: "Automatically routes requests to the best available free models on OpenRouter"
+  },
+  {
+    id: "openrouter/deepseek/deepseek-r1",
+    provider: "openrouter",
+    name: "DeepSeek R1 (via OpenRouter)",
+    badge: "OpenRouter",
+    description: "Open-weights frontier reasoning model routed via OpenRouter"
+  },
+  {
+    id: "openrouter/meta-llama/llama-3.3-70b-instruct",
+    provider: "openrouter",
+    name: "Llama 3.3 70B Instruct (via OpenRouter)",
+    badge: "OpenRouter",
+    description: "High-speed open-weights synthesis via OpenRouter"
+  },
+  {
+    id: "ollama/llama3.2",
+    provider: "ollama",
+    name: "Llama 3.2 (Local Ollama)",
+    badge: "Local AI",
+    description: "Runs 100% locally via Ollama with zero external API calls"
+  },
+  {
+    id: "ollama/qwen2.5:14b",
+    provider: "ollama",
+    name: "Qwen 2.5 14B (Local Ollama)",
+    badge: "Local AI",
+    description: "High-accuracy local research & RAG model on Ollama"
   }
 ];
 

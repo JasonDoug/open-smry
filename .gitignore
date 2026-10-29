@@ -1,20 +1,29 @@
-# Dependencies
+# Python & uv
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+backend/.venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node & pnpm
 node_modules/
 .pnpm-store/
-
-# Build outputs
 dist/
 build/
 .next/
 out/
 coverage/
 
-# Local runtime & databases
+# Databases & Local Runtime
 *.sqlite
-*.sqlite-journal
+*.sqlite3
 *.db
+*.db-journal
 .data/
-data/*.json
+backend/.data/
 
 # Environment variables
 .env

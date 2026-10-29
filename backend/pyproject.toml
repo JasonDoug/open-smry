@@ -1,0 +1,36 @@
+[project]
+name = "summary-ai-backend"
+version = "1.0.0"
+description = "Summary AI Backend: FastAPI, LangGraph Multi-Agent Orchestrator, Hybrid Vector/BM25 RAG, Edge-TTS Neural Karaoke & FastMCP Server"
+readme = "../README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sqlalchemy>=2.0.36",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "httpx>=0.28.0",
+    "beautifulsoup4>=4.15.0",
+    "lxml>=6.1.3",
+    "trafilatura>=2.3.1",
+    "readability-lxml>=0.9",
+    "youtube-transcript-api>=1.2.4",
+    "pymupdf>=2.0",
+    "ebooklib>=0.20",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+]
+
+[tool.uv]
+managed = true
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
