@@ -1,0 +1,19 @@
+{
+  "name": "@summary-ai/mcp-server",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/index.mjs",
+  "bin": {
+    "summary-ai-mcp": "./src/index.mjs"
+  },
+  "dependencies": {
+    "@summary-ai/shared": "workspace:*",
+    "@summary-ai/extractor": "workspace:*",
+    "@summary-ai/ai": "workspace:*",
+    "@summary-ai/api": "workspace:*"
+  },
+  "scripts": {
+    "build": "node --check src/index.mjs",
+    "test": "node --test test/mcp.test.mjs"
+  }
+}
