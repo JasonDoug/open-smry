@@ -1,0 +1,14 @@
+{
+  "name": "@summary-ai/mobile",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/MobileReaderController.mjs",
+  "dependencies": {
+    "@summary-ai/shared": "workspace:*",
+    "@summary-ai/ai": "workspace:*"
+  },
+  "scripts": {
+    "build": "node --check src/MobileReaderController.mjs",
+    "test": "node --test test/mobile.test.mjs"
+  }
+}

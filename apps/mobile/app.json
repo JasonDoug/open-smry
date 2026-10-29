@@ -1,0 +1,27 @@
+{
+  "expo": {
+    "name": "Summary AI",
+    "slug": "summary-ai-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "summaryai",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "bundleIdentifier": "open.summaryai.mobile",
+      "supportsTablet": true,
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"]
+      }
+    },
+    "android": {
+      "package": "open.summaryai.mobile",
+      "intentFilters": [
+        {
+          "action": "SEND",
+          "category": ["DEFAULT"],
+          "data": [{ "mimeType": "text/plain" }]
+        }
+      ]
+    }
+  }
+}

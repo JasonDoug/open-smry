@@ -1,0 +1,10 @@
+{
+  "name": "@summary-ai/extension",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./src/background.mjs",
+  "scripts": {
+    "build": "node --check src/background.mjs && node --check src/popup.mjs",
+    "test": "node --test test/extension.test.mjs"
+  }
+}

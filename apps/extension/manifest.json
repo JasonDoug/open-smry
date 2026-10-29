@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Summary AI — Distraction-Free Reader & AI Summarizer",
+  "version": "1.0.0",
+  "description": "One-click distraction-free reading, paywall mirror racing, LLM Markdown copy, and AI summarization from any active tab.",
+  "permissions": ["activeTab", "contextMenus", "storage", "scripting", "clipboardWrite"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_Title": "Read & Summarize with Summary AI",
+    "default_popup": "src/popup.html"
+  },
+  "background": {
+    "service_worker": "src/background.mjs",
+    "type": "module"
+  }
+}

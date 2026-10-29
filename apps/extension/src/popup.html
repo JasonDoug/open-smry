@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Summary AI Extension</title>
+  <style>
+    body { width: 340px; margin: 0; padding: 14px; font-family: system-ui, sans-serif; background: #0b0f17; color: #f1f5f9; }
+    h3 { margin: 0 0 8px; font-size: 15px; }
+    select, button { width: 100%; margin-top: 8px; padding: 8px; border-radius: 6px; border: 1px solid #1e293b; font-size: 13px; }
+    select { background: #111827; color: #f1f5f9; }
+    .btn-primary { background: #6366f1; color: white; font-weight: 600; border: none; cursor: pointer; }
+    .btn-secondary { background: #1e293b; color: #e2e8f0; cursor: pointer; }
+    #output { margin-top: 10px; font-size: 12px; line-height: 1.45; white-space: pre-wrap; background: #111827; padding: 8px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+  <h3>⚡ Summary AI — Active Tab</h3>
+  <select id="ext-model">
+    <option value="claude-3-7-sonnet">Claude 3.7 Sonnet</option>
+    <option value="gpt-4o">GPT-4o</option>
+    <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+  </select>
+  <button id="ext-summarize-btn" class="btn-primary">Summarize &amp; Save Active Tab</button>
+  <button id="ext-open-reader-btn" class="btn-secondary">Open in Full Distraction-Free Reader</button>
+  <div id="output">Ready to extract active tab.</div>
+  <script type="module" src="./popup.mjs"></script>
+</body>
+</html>
