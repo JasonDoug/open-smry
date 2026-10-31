@@ -48,10 +48,7 @@ def verify_exact_offset_invariant(
         sliced = full_text[chunk.start_char : chunk.end_char]
         if sliced == chunk.text:
             return True, sliced
-    # Fallback search if document text was modified
-    found_idx = full_text.find(chunk.text)
-    if found_idx >= 0:
-        return True, full_text[found_idx : found_idx + len(chunk.text)]
+        return False, sliced
     return False, chunk.text
 
 
@@ -64,10 +61,10 @@ def hybrid_search_passages(
     tag_filter: Optional[str] = None,
     media_type_filter: Optional[str] = None,
     saved_only: bool = False,
-) -> List[Dict[str, Any]]:
+) -> tuple[List[Dict[str, Any]], int]:
     """
     Executes Hybrid BM25 + Vector + Exact-Phrase search across indexed PassageChunks
-    and returns ranked passages with verified character offsets.
+    and returns (ranked_passages, total_candidates_scanned).
     """
     doc_query = db.query(Document)
     if saved_only:
@@ -91,7 +88,7 @@ def hybrid_search_passages(
         docs = filtered_docs
 
     if not docs:
-        return []
+        return [], 0
 
     doc_map: Dict[str, Document] = {d.id: d for d in docs}
     candidate_chunks: List[PassageChunk] = []
@@ -99,7 +96,7 @@ def hybrid_search_passages(
         candidate_chunks.extend(d.passages)
 
     if not candidate_chunks:
-        return []
+        return [], 0
 
     query_tokens = tokenize_text(query)
     if not query_tokens:
@@ -187,4 +184,4 @@ def hybrid_search_passages(
     top_results = results[: max(1, top_k)]
     for rank_idx, item in enumerate(top_results, start=1):
         item["rank"] = rank_idx
-    return top_results
+    return top_results, len(candidate_chunks)

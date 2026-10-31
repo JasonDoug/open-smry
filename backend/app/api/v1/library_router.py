@@ -167,8 +167,7 @@ def search_library_passages(
     payload: HybridSearchRequest,
     db: Session = Depends(get_db),
 ) -> HybridSearchResponse:
-    total_candidates = db.query(PassageChunk).count()
-    ranked = hybrid_search_passages(
+    ranked, total_candidates = hybrid_search_passages(
         db,
         payload.query,
         top_k=payload.top_k,
@@ -183,7 +182,7 @@ def search_library_passages(
 
     return HybridSearchResponse(
         query=payload.query,
-        total_candidates_scanned=max(total_candidates, len(passages_out)),
+        total_candidates_scanned=total_candidates,
         returned_count=len(passages_out),
         all_offsets_verified=all_verified,
         passages=passages_out,
@@ -194,11 +193,22 @@ def search_library_passages(
     "/library/reindex",
     response_model=ReindexLibraryResponse,
     summary="Recompute Passage Embeddings Across Library (Deterministic or Local Ollama /api/embed)",
+    description=(
+        "Recomputes and persists passage embeddings. When provider='ollama', high-dimensional vectors are stored in "
+        "PassageChunk.embedding_json. Note that hybrid search currently relies on 256-dimensional deterministic embeddings "
+        "for zero-latency ranking and falls back when query and stored dimensions differ; Ollama reindexing does not affect "
+        "search ranking until query-time Ollama embedding matches the stored dimension."
+    ),
 )
 async def reindex_library_embeddings(
     payload: ReindexLibraryRequest,
     db: Session = Depends(get_db),
 ) -> ReindexLibraryResponse:
+    """
+    Recomputes and stores passage embeddings across library documents.
+    Note: Stored Ollama embeddings are persisted for downstream agentic use. Hybrid search falls back to
+    deterministic embeddings if stored vector dimensions differ from the query embedding.
+    """
     settings = get_settings()
     stmt = select(Document)
     docs = list(db.scalars(stmt).all())

@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-const SPRINT1_REQUIRED_PATHS = [
+const REQUIRED_PATHS = [
   "README.md",
   "LICENSE",
   "CONTRIBUTING.md",
@@ -33,10 +33,10 @@ const SPRINT1_REQUIRED_PATHS = [
 ];
 
 let missing = 0;
-for (const rel of SPRINT1_REQUIRED_PATHS) {
+for (const rel of REQUIRED_PATHS) {
   const full = path.resolve(process.cwd(), rel);
   if (!fs.existsSync(full)) {
-    console.error(`Missing required Sprint 1 file: ${rel}`);
+    console.error(`Missing required repository file: ${rel}`);
     missing += 1;
   }
 }
@@ -44,4 +44,4 @@ for (const rel of SPRINT1_REQUIRED_PATHS) {
 if (missing > 0) {
   process.exit(1);
 }
-console.log(`✔ Verified ${SPRINT1_REQUIRED_PATHS.length} Sprint 1 polyglot architecture & OSS governance files.`);
+console.log(`✔ Verified ${REQUIRED_PATHS.length} required repository architecture & OSS governance files.`);

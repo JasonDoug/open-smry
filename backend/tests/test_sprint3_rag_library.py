@@ -29,6 +29,19 @@ def test_exact_offset_invariant_unit() -> None:
     assert verify_exact_offset_invariant(full_text, start_idx + 1, end_idx, quote) is False
     assert verify_exact_offset_invariant(full_text, -1, end_idx, quote) is False
 
+    # Test Document and PassageChunk objects without fallback search
+    from app.db.models import Document, PassageChunk
+    doc = Document(id="doc_test", text_content=full_text)
+    valid_chunk = PassageChunk(id="c1", document_id="doc_test", start_char=start_idx, end_char=end_idx, text=quote)
+    verified, val = verify_exact_offset_invariant(doc, valid_chunk)
+    assert verified is True
+    assert val == quote
+
+    # Tampered chunk offsets must strictly fail and not fall back to finding quote elsewhere
+    tampered_chunk = PassageChunk(id="c2", document_id="doc_test", start_char=0, end_char=10, text=quote)
+    verified_bad, _ = verify_exact_offset_invariant(doc, tampered_chunk)
+    assert verified_bad is False
+
 
 def test_hybrid_rag_search_and_exact_offset_verification() -> None:
     book_payload = {
@@ -63,9 +76,23 @@ def test_hybrid_rag_search_and_exact_offset_verification() -> None:
     )
     assert search_res.status_code == 200
     search_data = search_res.json()
-    assert search_data["total_candidates_scanned"] >= 3
+    # total_candidates_scanned must reflect the 3 filtered candidate passages, not global DB count
+    assert search_data["total_candidates_scanned"] == 3
     assert search_data["returned_count"] == 3
     assert search_data["all_offsets_verified"] is True
+
+    # Search with non-matching document ID must report 0 candidates scanned
+    empty_res = client.post(
+        "/api/v1/library/search",
+        json={
+            "query": "Reciprocal Rank Fusion",
+            "top_k": 3,
+            "document_ids": ["non_existent_doc_id"],
+        },
+    )
+    assert empty_res.status_code == 200
+    assert empty_res.json()["total_candidates_scanned"] == 0
+    assert empty_res.json()["returned_count"] == 0
 
     top_passage = search_data["passages"][0]
     assert top_passage["document_id"] == doc_id

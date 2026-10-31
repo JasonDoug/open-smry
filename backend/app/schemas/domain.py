@@ -527,7 +527,11 @@ class ReindexLibraryRequest(BaseModel):
     )
     provider: Literal["deterministic", "ollama"] = Field(
         default="deterministic",
-        description="Embedding provider: 'deterministic' (256-dim local hashing) or 'ollama' (live local Ollama /api/embed)",
+        description=(
+            "Embedding provider: 'deterministic' (256-dim local hashing) or 'ollama' (live local Ollama /api/embed). "
+            "Note: Ollama vectors are persisted in PassageChunk.embedding_json. Hybrid search currently uses 256-dim "
+            "deterministic embeddings for synchronous low-latency query ranking, falling back if stored dimensions differ."
+        ),
     )
     ollama_model: str = Field(
         default="nomic-embed-text-v2-moe:latest",
