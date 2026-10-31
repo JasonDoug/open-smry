@@ -23,9 +23,13 @@ const SPRINT1_REQUIRED_PATHS = [
   "backend/app/extraction/racer.py",
   "backend/app/extraction/youtube.py",
   "backend/app/extraction/books.py",
+  "backend/app/rag/embeddings.py",
+  "backend/app/rag/retriever.py",
+  "backend/app/api/v1/library_router.py",
   "backend/app/main.py",
   "backend/tests/test_sprint1_foundation.py",
-  "backend/tests/test_sprint2_extraction.py"
+  "backend/tests/test_sprint2_extraction.py",
+  "backend/tests/test_sprint3_rag_library.py"
 ];
 
 let missing = 0;

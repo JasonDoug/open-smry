@@ -406,3 +406,191 @@ class ExtractedDocumentResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+# ============================================================================
+# Sprint 3 Schemas: Hybrid RAG Search, Exact Passage Verification,
+# Saved Library, Reading History & Cross-Device Cloud Sync
+# ============================================================================
+
+
+class LibraryUpdateRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "title": "Updated Research Article Title",
+                "saved_in_library": True,
+                "tags": ["research", "rag", "favorite"],
+            }
+        }
+    )
+    title: Optional[str] = None
+    saved_in_library: Optional[bool] = None
+    tags: Optional[List[str]] = None
+
+
+class LibraryItemSummarySchema(BaseModel):
+    id: str
+    url: str
+    title: str
+    author: Optional[str] = None
+    site_name: Optional[str] = None
+    media_type: str
+    excerpt: Optional[str] = None
+    word_count: int
+    reading_time_minutes: int
+    source_used: str
+    saved_in_library: bool
+    tags: List[str] = Field(default_factory=list)
+    passage_count: int = 0
+    created_at: datetime
+    updated_at: datetime
+
+
+class LibraryListResponse(BaseModel):
+    total: int
+    items: List[LibraryItemSummarySchema]
+
+
+class HybridSearchRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "query": "exact start_char and end_char offsets",
+                "top_k": 5,
+                "document_ids": None,
+                "tag": None,
+                "media_type": None,
+                "saved_only": False,
+            }
+        }
+    )
+    query: str = Field(
+        default="exact start_char and end_char offsets",
+        min_length=1,
+        description="Search query evaluated via Hybrid BM25 + Dense Vector Cosine Similarity + RRF",
+    )
+    top_k: int = Field(default=5, ge=1, le=25)
+    document_ids: Optional[List[str]] = Field(
+        default=None,
+        description="Optional filter restricting search to specific document IDs",
+    )
+    tag: Optional[str] = Field(
+        default=None,
+        description="Optional tag filter (e.g., 'book', 'youtube', 'web')",
+    )
+    media_type: Optional[str] = Field(
+        default=None,
+        description="Optional media_type filter ('article', 'book', 'youtube')",
+    )
+    saved_only: bool = Field(
+        default=False,
+        description="If true, only search documents marked saved_in_library=True",
+    )
+
+
+class RetrievedPassageSchema(BaseModel):
+    rank: int
+    passage_id: str
+    document_id: str
+    document_title: str
+    document_url: str
+    media_type: str
+    paragraph_index: int
+    chapter_title: Optional[str] = None
+    page_or_timestamp: Optional[str] = None
+    start_char: int
+    end_char: int
+    exact_quote: str
+    offset_verified: bool
+    bm25_score: float
+    vector_score: float
+    hybrid_score: float
+
+
+class HybridSearchResponse(BaseModel):
+    query: str
+    total_candidates_scanned: int
+    returned_count: int
+    all_offsets_verified: bool
+    passages: List[RetrievedPassageSchema]
+
+
+class ReindexLibraryRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "provider": "deterministic",
+                "ollama_model": "nomic-embed-text-v2-moe:latest",
+                "document_ids": None,
+            }
+        }
+    )
+    provider: Literal["deterministic", "ollama"] = Field(
+        default="deterministic",
+        description="Embedding provider: 'deterministic' (256-dim local hashing) or 'ollama' (live local Ollama /api/embed)",
+    )
+    ollama_model: str = Field(
+        default="nomic-embed-text-v2-moe:latest",
+        description="Local Ollama embedding model name when provider='ollama'",
+    )
+    document_ids: Optional[List[str]] = None
+
+
+class ReindexLibraryResponse(BaseModel):
+    provider_used: str
+    documents_indexed: int
+    passages_indexed: int
+    embedding_dimension: int
+
+
+class ReadingHistoryItemSchema(BaseModel):
+    id: str
+    document_id: str
+    title: str
+    url: str
+    source_used: str
+    word_count: int
+    last_read_at: datetime
+
+
+class ReadingHistoryResponse(BaseModel):
+    total: int
+    items: List[ReadingHistoryItemSchema]
+
+
+class CloudSyncImportRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "session_id": "demo-sync-session",
+                "settings": {
+                    "theme": "sepia",
+                    "font_id": "merriweather",
+                    "font_size_px": 20,
+                    "line_height": 1.8,
+                    "margin_width": "medium",
+                    "preferred_provider": "openrouter",
+                    "preferred_model": "openrouter/free",
+                    "preferred_voice_id": "aria-us-f",
+                    "preferred_tts_speed": 1.0,
+                },
+                "saved_document_ids": [],
+            }
+        }
+    )
+    session_id: str = Field(default="demo-sync-session")
+    settings: Optional[ReaderSettingsSchema] = None
+    saved_document_ids: List[str] = Field(default_factory=list)
+
+
+class CloudSyncSnapshotResponse(BaseModel):
+    sync_version: str = "1.0"
+    session_id: str
+    settings: ReaderSettingsSchema
+    library_count: int
+    history_count: int
+    library_items: List[LibraryItemSummarySchema]
+    reading_history: List[ReadingHistoryItemSchema]
+    exported_at: datetime
+
+
