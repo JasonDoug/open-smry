@@ -17,9 +17,9 @@
 | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Sprint 1** | **Polyglot Monorepo, SQLAlchemy/SQLite DB, FastAPI OpenAPI 3.1 Core & OSS Governance** | #1, #2, #3 | ✅ **11/11 Passing** (`6 pytest` + `5 TS`) | ✅ Completed | ✅ **Signed Off** |
 | **Sprint 2** | **Async Multi-Source Racer (`httpx`), Sanitizer (`trafilatura`/`BS4`), YouTube & Books (PDF/EPUB)** | #4, #5, #6, #9, #10 | ✅ **15/15 Passing** (`10 pytest` + `5 TS`) | ✅ Completed | ✅ **Signed Off** |
-| **Sprint 3** | **Exact-Offset Passage Chunker, Hybrid RAG (`rank-bm25` + Vectors), Library & Cloud Sync** | #7, #8, #28 | ✅ **19/19 Passing** (`14 pytest` + `5 TS`) | 🟢 **In Review Now** (`http://localhost:8000`) | ⏳ Awaiting Your Sign-Off |
-| **Sprint 4** | **LangGraph Multi-Agent System (Claude/GPT/Gemini/OpenRouter/Ollama), Critic & Streaming Chat** | #11–#16 | ⏸️ Queued Next | ⏸️ Queued | ⏳ Pending |
-| **Sprint 5** | **Distraction-Free React/TS Web Reader, Source Switcher & 7 Fonts (incl. OpenDyslexic)** | #17, #18 | ⏸️ Queued | ⏸️ Queued | ⏳ Pending |
+| **Sprint 3** | **Exact-Offset Passage Chunker, Hybrid RAG (`rank-bm25` + Vectors), Library & Cloud Sync** | #7, #8, #28 | ✅ **19/19 Passing** (`14 pytest` + `5 TS`) | ✅ Completed | ✅ **Signed Off** |
+| **Sprint 4** | **LangGraph Multi-Agent System (Claude/GPT/Gemini/OpenRouter/Ollama), Critic & Streaming Chat** | #11–#16 | ✅ **24/24 Passing** (`19 pytest` + `5 TS`) | 🟢 **In Review Now** (`http://localhost:8000`) | ⏳ Awaiting Your Sign-Off |
+| **Sprint 5** | **Distraction-Free React/TS Web Reader, Source Switcher & 7 Fonts (incl. OpenDyslexic)** | #17, #18 | ⏸️ Queued Next | ⏸️ Queued | ⏳ Pending |
 | **Sprint 6** | **5-Color Highlights, Margin Notes Drawer & PKM Exports (Notion, Obsidian, Roam, MD, JSON)** | #19, #20, #21 | ⏸️ Queued | ⏸️ Queued | ⏳ Pending |
 | **Sprint 7** | **Natural Voice Neural TTS (`edge-tts`, 10 Voices/Accents) & Karaoke WordBoundary Sync** | #22, #23, #24 | ⏸️ Queued | ⏸️ Queued | ⏳ Pending |
 | **Sprint 8** | **Agentic Ecosystem: SHA-256 API Keys (`smry_live_...`), RSS Auto-Ingest & `FastMCP` Server** | #25, #26, #27 | ⏸️ Queued | ⏸️ Queued | ⏳ Pending |
