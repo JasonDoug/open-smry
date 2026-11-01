@@ -25,11 +25,19 @@ const REQUIRED_PATHS = [
   "backend/app/extraction/books.py",
   "backend/app/rag/embeddings.py",
   "backend/app/rag/retriever.py",
+  "backend/app/agents/llm_router.py",
+  "backend/app/agents/state.py",
+  "backend/app/agents/summarizer.py",
+  "backend/app/agents/qa_critic.py",
+  "backend/app/agents/context_analyst.py",
+  "backend/app/agents/graph.py",
   "backend/app/api/v1/library_router.py",
+  "backend/app/api/v1/agents_router.py",
   "backend/app/main.py",
   "backend/tests/test_sprint1_foundation.py",
   "backend/tests/test_sprint2_extraction.py",
-  "backend/tests/test_sprint3_rag_library.py"
+  "backend/tests/test_sprint3_rag_library.py",
+  "backend/tests/test_sprint4_langgraph_agents.py"
 ];
 
 let missing = 0;

@@ -3,7 +3,7 @@ Canonical Pydantic v2 Schemas & Platform Constants for Summary AI.
 """
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 READER_FONTS: List[Dict[str, str]] = [
@@ -596,5 +596,176 @@ class CloudSyncSnapshotResponse(BaseModel):
     library_items: List[LibraryItemSummarySchema]
     reading_history: List[ReadingHistoryItemSchema]
     exported_at: datetime
+
+
+# ============================================================================
+# Sprint 4 Schemas: LangGraph Multi-Agent Orchestration, Multi-LLM Router,
+# 5-Mode Summaries, Verifiable Q&A Critic, Context Analyst & Streaming Chat
+# ============================================================================
+
+
+class SummarizeRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "document_id": "demo_doc_id",
+                "mode": "bullets",
+                "custom_prompt": None,
+                "provider": "openrouter",
+                "model": "openrouter/free",
+            }
+        }
+    )
+    document_id: str = Field(description="Target Document ID to summarize")
+    mode: Literal["tldr", "bullets", "takeaways", "executive", "custom"] = Field(
+        default="bullets",
+        description="Summarization mode: 'tldr' (executive synthesis), 'bullets' (key claims), 'takeaways' (actionable implications), 'executive' (deep research brief), 'custom' (user prompt)",
+    )
+    custom_prompt: Optional[str] = Field(
+        default=None,
+        description="Custom prompt instructions when mode='custom'",
+    )
+    provider: Optional[Literal["claude", "gpt", "gemini", "openrouter", "ollama"]] = Field(
+        default=None,
+        description="LLM provider: 'claude', 'gpt', 'gemini', 'openrouter', or 'ollama'",
+    )
+    model: Optional[str] = Field(
+        default=None,
+        description="Model ID (e.g., 'openrouter/free', 'claude-3-7-sonnet', 'gpt-4o', 'qwen2.5:7b')",
+    )
+
+    @model_validator(mode="after")
+    def validate_custom_prompt(self) -> "SummarizeRequest":
+        if self.mode == "custom" and (not self.custom_prompt or not self.custom_prompt.strip()):
+            raise ValueError("custom_prompt is required and cannot be empty when mode='custom'.")
+        return self
+
+
+class SummaryResponse(BaseModel):
+    id: str
+    document_id: str
+    mode: str
+    content: str
+    key_points: List[str] = Field(default_factory=list)
+    word_count: int
+    reading_time_saved_minutes: int
+    provider_used: str
+    model_used: str
+    created_at: datetime
+
+
+class AskDocumentRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "document_id": "demo_doc_id",
+                "question": "What is the core argument regarding verifiable passage citations?",
+                "top_k": 5,
+                "provider": "openrouter",
+                "model": "openrouter/free",
+            }
+        }
+    )
+    document_id: str = Field(description="Document ID to query")
+    question: str = Field(
+        min_length=1,
+        description="Research inquiry to answer with verbatim passage citations",
+    )
+    top_k: int = Field(default=5, ge=1, le=20)
+    provider: Optional[Literal["claude", "gpt", "gemini", "openrouter", "ollama"]] = None
+    model: Optional[str] = None
+
+
+class AskDocumentResponse(BaseModel):
+    document_id: str
+    question: str
+    answer: str
+    citations: List[RetrievedPassageSchema] = Field(default_factory=list)
+    all_citations_verified: bool
+    provider_used: str
+    model_used: str
+
+
+class AskContextRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "document_id": "demo_doc_id",
+                "selected_text": "Indexing every paragraph by exact start_char and end_char offsets eliminates hallucinated references.",
+                "start_char": 100,
+                "end_char": 213,
+                "action_or_question": "explain",
+                "provider": "openrouter",
+                "model": "openrouter/free",
+            }
+        }
+    )
+    document_id: str = Field(description="Document ID containing the highlighted text")
+    selected_text: str = Field(
+        min_length=1,
+        description="Highlighted text passage from the reader interface",
+    )
+    start_char: Optional[int] = Field(default=None, description="Exact start character index")
+    end_char: Optional[int] = Field(default=None, description="Exact end character index")
+    action_or_question: str = Field(
+        default="explain",
+        description="'explain' | 'critique' | 'define' | or any custom question regarding this excerpt",
+    )
+    provider: Optional[Literal["claude", "gpt", "gemini", "openrouter", "ollama"]] = None
+    model: Optional[str] = None
+
+
+class AskContextResponse(BaseModel):
+    document_id: str
+    selected_text: str
+    action_or_question: str
+    analysis: str
+    offset_verified: bool
+    provider_used: str
+    model_used: str
+
+
+class ChatMessageRequest(BaseModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "thread_id": None,
+                "document_id": "demo_doc_id",
+                "message": "Summarize the primary conclusions and cite the exact passages.",
+                "provider": "openrouter",
+                "model": "openrouter/free",
+            }
+        }
+    )
+    thread_id: Optional[str] = Field(default=None, description="Existing thread ID or None to create a new thread")
+    document_id: Optional[str] = Field(default=None, description="Optional document ID context")
+    message: str = Field(
+        min_length=1,
+        description="User message content",
+    )
+    provider: Optional[Literal["claude", "gpt", "gemini", "openrouter", "ollama"]] = None
+    model: Optional[str] = None
+
+
+class ChatMessageSchema(BaseModel):
+    id: str
+    thread_id: str
+    role: str
+    content: str
+    provider: Optional[str] = None
+    model_id: Optional[str] = None
+    citations: List[Dict[str, Any]] = Field(default_factory=list)
+    created_at: datetime
+
+
+class ChatThreadResponse(BaseModel):
+    id: str
+    document_id: Optional[str] = None
+    title: str
+    provider: str
+    model_id: str
+    messages: List[ChatMessageSchema] = Field(default_factory=list)
+    created_at: datetime
+
 
 
