@@ -97,6 +97,14 @@ def test_summarize_modes_and_persistence() -> None:
     assert any(s["mode"] == "tldr" for s in summaries)
     assert any(s["mode"] == "executive" for s in summaries)
 
+    # 8. Test validation: custom mode without custom_prompt must return 422
+    invalid_custom = client.post(
+        "/api/v1/summarize",
+        json={"document_id": doc_id, "mode": "custom", "custom_prompt": ""},
+    )
+    assert invalid_custom.status_code == 422
+    assert "custom_prompt is required" in invalid_custom.text
+
 
 def test_map_reduce_long_document() -> None:
     # Generate 18 distinct paragraphs to trigger Map-Reduce
@@ -179,6 +187,10 @@ def test_verifiable_qa_with_critic_agent() -> None:
         == top_citation["exact_quote"]
     )
 
+    # Missing question must fail validation with 422
+    bad_ask = client.post(f"/api/v1/documents/{doc_id}/ask", json={"document_id": doc_id})
+    assert bad_ask.status_code == 422
+
 
 def test_contextual_excerpt_analyst() -> None:
     quote = "Grounding every summary sentence in exact-offset quotations eliminates citation fraud."
@@ -228,6 +240,10 @@ def test_contextual_excerpt_analyst() -> None:
     assert critique_res.status_code == 200
     assert critique_res.json()["offset_verified"] is True
 
+    # Missing selected_text must fail validation with 422
+    bad_ctx = client.post("/api/v1/ask-context", json={"document_id": doc_id})
+    assert bad_ctx.status_code == 422
+
 
 def test_chat_interaction_and_sse_streaming() -> None:
     # 1. Standard JSON chat
@@ -272,3 +288,22 @@ def test_chat_interaction_and_sse_streaming() -> None:
     # 5. Confirm 404 after delete
     get_deleted = client.get(f"/api/v1/chat/{thread_id}")
     assert get_deleted.status_code == 404
+
+    # 6. Validation & Error Handling:
+    # Missing message must return 422
+    bad_msg = client.post("/api/v1/chat", json={})
+    assert bad_msg.status_code == 422
+
+    # Non-existent thread_id must return 404
+    bad_thread = client.post(
+        "/api/v1/chat",
+        json={"thread_id": "non_existent_thread_xyz", "message": "hello"},
+    )
+    assert bad_thread.status_code == 404
+
+    # Non-existent document_id on thread creation must return 404
+    bad_doc = client.post(
+        "/api/v1/chat",
+        json={"document_id": "non_existent_doc_xyz", "message": "hello"},
+    )
+    assert bad_doc.status_code == 404

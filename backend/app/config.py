@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     ollama_base_url: str = "http://localhost:11434"
     ollama_default_model: str = "llama3.2"
     ollama_embedding_model: str = "nomic-embed-text"
+    ollama_timeout: float = 60.0
     local_openai_base_url: Optional[str] = None
     local_openai_api_key: str = "local-no-key-required"
 

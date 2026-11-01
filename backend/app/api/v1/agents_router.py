@@ -286,7 +286,19 @@ async def chat_interaction(
     thread = None
     if payload.thread_id:
         thread = db.get(ChatThread, payload.thread_id)
-    if not thread:
+        if not thread:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"ChatThread '{payload.thread_id}' not found",
+            )
+    else:
+        if payload.document_id:
+            doc = db.get(Document, payload.document_id)
+            if not doc:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail=f"Document '{payload.document_id}' not found",
+                )
         thread = ChatThread(
             document_id=payload.document_id,
             title=f"Chat: {payload.message[:40]}...",

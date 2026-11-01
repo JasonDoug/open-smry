@@ -3,7 +3,7 @@ Canonical Pydantic v2 Schemas & Platform Constants for Summary AI.
 """
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 READER_FONTS: List[Dict[str, str]] = [
@@ -634,6 +634,12 @@ class SummarizeRequest(BaseModel):
         description="Model ID (e.g., 'openrouter/free', 'claude-3-7-sonnet', 'gpt-4o', 'qwen2.5:7b')",
     )
 
+    @model_validator(mode="after")
+    def validate_custom_prompt(self) -> "SummarizeRequest":
+        if self.mode == "custom" and (not self.custom_prompt or not self.custom_prompt.strip()):
+            raise ValueError("custom_prompt is required and cannot be empty when mode='custom'.")
+        return self
+
 
 class SummaryResponse(BaseModel):
     id: str
@@ -662,7 +668,6 @@ class AskDocumentRequest(BaseModel):
     )
     document_id: str = Field(description="Document ID to query")
     question: str = Field(
-        default="What is the core argument regarding verifiable passage citations?",
         min_length=1,
         description="Research inquiry to answer with verbatim passage citations",
     )
@@ -697,7 +702,6 @@ class AskContextRequest(BaseModel):
     )
     document_id: str = Field(description="Document ID containing the highlighted text")
     selected_text: str = Field(
-        default="Indexing every paragraph by exact start_char and end_char offsets eliminates hallucinated references.",
         min_length=1,
         description="Highlighted text passage from the reader interface",
     )
@@ -736,8 +740,8 @@ class ChatMessageRequest(BaseModel):
     thread_id: Optional[str] = Field(default=None, description="Existing thread ID or None to create a new thread")
     document_id: Optional[str] = Field(default=None, description="Optional document ID context")
     message: str = Field(
-        default="Summarize the primary conclusions and cite the exact passages.",
         min_length=1,
+        description="User message content",
     )
     provider: Optional[Literal["claude", "gpt", "gemini", "openrouter", "ollama"]] = None
     model: Optional[str] = None

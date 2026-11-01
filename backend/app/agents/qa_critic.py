@@ -60,44 +60,88 @@ async def qa_synthesizer_node(state: AgentState) -> AgentState:
 
 async def qa_critic_node(state: AgentState) -> AgentState:
     """
-    Critic Node: Verifies that every cited passage has valid offsets and matches the text content.
+    Critic Node:
+    1. Parses [Passage N] markers from generated_answer.
+    2. Rejects out-of-range indices and derives has_unverified from citation validity.
+    3. Populates state["citations"] with only cited passages.
+    4. Verifies exact character offsets against full_text (recording offset_verified).
+    5. Triggers revision loop on answer-citation faults, not retrieval offset faults.
     """
     full_text = state.get("document_text") or ""
     retrieved = state.get("retrieved_passages") or []
     answer = state.get("generated_answer") or ""
     iteration = state.get("iteration", 0)
 
-    # Determine which passages were cited or relevant
-    verified_citations: List[Dict[str, Any]] = []
+    # 1. Parse [Passage N] markers from answer
+    raw_markers = re.findall(r"\[Passage\s+(\d+)\]", answer, re.IGNORECASE)
+    cited_indices = [int(m) for m in raw_markers]
+
     has_unverified = False
+    verified_citations: List[Dict[str, Any]] = []
+    seen_indices = set()
 
-    for p in retrieved:
-        start_c = int(p.get("start_char", 0))
-        end_c = int(p.get("end_char", 0))
-        quote = p.get("exact_quote") or p.get("text") or ""
-
-        # Verify exact character-offset invariant against full document text
-        if full_text:
-            is_valid = bool(verify_exact_offset_invariant(full_text, start_c, end_c, quote))
-        else:
-            is_valid = bool(p.get("offset_verified", True))
-
-        citation_entry = dict(p)
-        citation_entry["offset_verified"] = is_valid
-        verified_citations.append(citation_entry)
-
-        if not is_valid:
+    if not cited_indices:
+        # Check if any passage text was quoted verbatim in answer
+        found_verbatim = False
+        for p in retrieved:
+            quote = p.get("exact_quote") or p.get("text") or ""
+            if len(quote) > 15 and quote.lower() in answer.lower():
+                entry = dict(p)
+                start_c = int(p.get("start_char", 0))
+                end_c = int(p.get("end_char", 0))
+                entry["offset_verified"] = (
+                    bool(verify_exact_offset_invariant(full_text, start_c, end_c, quote))
+                    if full_text
+                    else bool(p.get("offset_verified", True))
+                )
+                verified_citations.append(entry)
+                found_verbatim = True
+                break
+        if not found_verbatim:
             has_unverified = True
+            if retrieved:
+                entry = dict(retrieved[0])
+                entry["offset_verified"] = bool(retrieved[0].get("offset_verified", True))
+                verified_citations.append(entry)
+    else:
+        for idx in cited_indices:
+            if idx < 1 or idx > len(retrieved):
+                has_unverified = True
+                continue
+            if idx in seen_indices:
+                continue
+            seen_indices.add(idx)
+
+            p = retrieved[idx - 1]
+            start_c = int(p.get("start_char", 0))
+            end_c = int(p.get("end_char", 0))
+            quote = p.get("exact_quote") or p.get("text") or ""
+
+            offset_valid = (
+                bool(verify_exact_offset_invariant(full_text, start_c, end_c, quote))
+                if full_text
+                else bool(p.get("offset_verified", True))
+            )
+
+            entry = dict(p)
+            entry["offset_verified"] = offset_valid
+            verified_citations.append(entry)
 
     state["citations"] = verified_citations
-    state["all_citations_verified"] = not has_unverified if verified_citations else True
+    state["all_citations_verified"] = (
+        not has_unverified and all(c.get("offset_verified", False) for c in verified_citations)
+        if verified_citations
+        else False
+    )
 
-    # Check if answer needs revision
+    # Revision loop triggers only on answer-level citation faults (invalid or omitted citations),
+    # treating offset failures as retrieval faults.
     if has_unverified and iteration < 1:
         state["critic_verdict"] = "revise"
         state["critic_feedback"] = (
-            "One or more citation offsets failed exact verification against the primary text. "
-            "Re-anchor your answer strictly to the verbatim passages without altering words."
+            f"Your answer cited invalid or out-of-range passage numbers. "
+            f"Please cite valid passages from [Passage 1] to [Passage {len(retrieved)}] "
+            "with verbatim quotations."
         )
         state["iteration"] = iteration + 1
     else:
