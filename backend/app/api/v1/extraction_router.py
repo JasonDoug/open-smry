@@ -25,6 +25,7 @@ from app.extraction.books import (
 )
 from app.extraction.racer import extract_from_url
 from app.extraction.youtube import extract_youtube_transcript
+from app.rag.embeddings import compute_deterministic_embedding
 from app.schemas.domain import (
     CopyToLlmResponse,
     ExtractBookRequest,
@@ -84,6 +85,8 @@ def _persist_extracted_document(
     db.flush()
 
     for p in extracted.get("passages") or []:
+        passage_text = str(p["text"])
+        embedding_vec = compute_deterministic_embedding(passage_text)
         chunk = PassageChunk(
             document_id=doc.id,
             paragraph_index=int(p["paragraph_index"]),
@@ -91,7 +94,8 @@ def _persist_extracted_document(
             page_or_timestamp=p.get("page_or_timestamp"),
             start_char=int(p["start_char"]),
             end_char=int(p["end_char"]),
-            text=str(p["text"]),
+            text=passage_text,
+            embedding_json=json.dumps(embedding_vec),
         )
         db.add(chunk)
 

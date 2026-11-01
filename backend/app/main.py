@@ -30,6 +30,7 @@ class NormalizeSlashMiddleware:
 
 from app.api.v1.router import router as v1_router
 from app.api.v1.extraction_router import extraction_router
+from app.api.v1.library_router import library_router
 from app.config import get_settings
 from app.db.session import init_db
 
@@ -76,13 +77,14 @@ def create_app() -> FastAPI:
 
     application.include_router(v1_router)
     application.include_router(extraction_router)
+    application.include_router(library_router)
 
     @application.get("/", tags=["Root"], summary="Summary AI API Root & Sprint Status")
     def root_index() -> Dict[str, Any]:
         return {
             "name": settings.app_name,
             "version": settings.app_version,
-            "sprint": "Sprint 2 — Multi-Source Extraction Racer, Distraction/Paywall Stripper, YouTube Transcripts & Books",
+            "sprint": "Sprint 3 — Hybrid BM25+Vector RAG Indexer, Exact Passage Verification, Saved Library & Cloud Sync",
             "no_account_required": True,
             "links": {
                 "openapi_spec": "/openapi.json",
@@ -94,6 +96,11 @@ def create_app() -> FastAPI:
                 "extract_url": "/api/v1/extract/url",
                 "extract_youtube": "/api/v1/extract/youtube",
                 "extract_book": "/api/v1/extract/book",
+                "library": "/api/v1/library",
+                "library_hybrid_search": "/api/v1/library/search",
+                "library_reindex": "/api/v1/library/reindex",
+                "reading_history": "/api/v1/history",
+                "cloud_sync_export": "/api/v1/sync/export",
             },
         }
 
