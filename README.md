@@ -1,4 +1,4 @@
-# Summary AI ⚡📚🤖
+# open-smry ⚡📚🤖
 
 **Open-Source Agentic AI Reading, Summarizing & Verifiable Research Platform**  
 *Patterned after [smry.ai](https://smry.ai) — built for Web, Desktop, Mobile, Browser Extensions, HTTP OpenAPI, and Model Context Protocol (MCP).*
@@ -10,7 +10,7 @@
 
 ---
 
-## 🌟 Why Summary AI?
+## 🌟 Why open-smry?
 
 Save any **article, book, website, or YouTube video** and it gets **read, summarized, and filed for you**—with zero popups, ads, cookie banners, or soft paywalls. **Ask a question weeks later and get the answer verified with the exact source passage and character offsets.**
 
@@ -61,7 +61,7 @@ Save any **article, book, website, or YouTube video** and it gets **read, summar
 ## 🏗️ Monorepo Structure
 
 ```text
-summary-ai/
+open-smry/
 ├── packages/
 │   ├── shared/         # Domain schemas, 7 reader fonts, 10 TTS voices, PKM exporters & passage RAG indexer
 │   ├── extractor/      # Multi-source mirror racer, paywall/ad sanitizer, YouTube transcripts & RSS parser
@@ -96,7 +96,7 @@ npm start
 * **Raw OpenAPI 3.1 Spec**: [http://localhost:3333/openapi.json](http://localhost:3333/openapi.json)
 
 ### 3. Connect an External AI Agent via MCP
-Add Summary AI to your Claude Desktop, Cursor, or Antigravity MCP configuration:
+Add open-smry to your Claude Desktop, Cursor, or Antigravity MCP configuration:
 ```json
 {
   "mcpServers": {
