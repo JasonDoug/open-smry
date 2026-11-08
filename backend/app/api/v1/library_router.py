@@ -44,6 +44,7 @@ library_router = APIRouter(
 
 
 def _doc_to_library_summary(doc: Document) -> LibraryItemSummarySchema:
+    """Projects a Document row into the lightweight library-card summary schema."""
     try:
         tags_list = json.loads(doc.tags_json or "[]")
     except Exception:

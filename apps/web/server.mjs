@@ -6,6 +6,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import { pipeline } from "node:stream";
 import { fileURLToPath } from "node:url";
 
 const __filename = fileURLToPath(import.meta.url);
@@ -31,7 +32,16 @@ export function createWebServer(options = {}) {
   const parsedBackend = new URL(backendUrl);
 
   const server = http.createServer((req, res) => {
-    const parsedReqUrl = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    // Parse against a constant base: the Host header is client-controlled and
+    // must never influence URL resolution. Reject malformed request targets.
+    let parsedReqUrl;
+    try {
+      parsedReqUrl = new URL(req.url, "http://localhost");
+    } catch {
+      res.writeHead(400, { "Content-Type": "text/plain" });
+      res.end("400 Bad Request");
+      return;
+    }
     const pathname = parsedReqUrl.pathname;
 
     // 1. Proxy API, OpenAPI & Docs requests to the FastAPI backend
@@ -58,7 +68,14 @@ export function createWebServer(options = {}) {
         },
         (proxyRes) => {
           res.writeHead(proxyRes.statusCode || 200, proxyRes.headers);
-          proxyRes.pipe(res);
+          // pipeline propagates upstream failures instead of hanging the client;
+          // on success the pipeline completes without touching the streams.
+          pipeline(proxyRes, res, (err) => {
+            if (err) {
+              proxyRes.destroy();
+              res.destroy();
+            }
+          });
         }
       );
 
@@ -72,10 +89,16 @@ export function createWebServer(options = {}) {
               code: err.code
             })
           );
+        } else {
+          res.destroy();
         }
       });
 
-      req.pipe(proxyReq);
+      // Propagate client-side disconnects to the backend request; on normal
+      // completion (request body fully sent) the response is still pending.
+      pipeline(req, proxyReq, (err) => {
+        if (err) proxyReq.destroy();
+      });
       return;
     }
 

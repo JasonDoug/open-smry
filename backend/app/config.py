@@ -49,4 +49,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    """Returns the process-wide Settings instance (cached; env vars + .env backed)."""
     return Settings()

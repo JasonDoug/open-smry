@@ -649,6 +649,13 @@ class SummarizeRequest(BaseModel):
         default=None,
         description="Optional per-request API key overrides keyed by provider (anthropic, openai, gemini, openrouter)",
     )
+    session_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional reader session ID whose persisted provider API keys should be "
+            "used for this request (per-request api_keys take precedence)"
+        ),
+    )
 
     @model_validator(mode="after")
     def validate_custom_prompt(self) -> "SummarizeRequest":
@@ -694,6 +701,13 @@ class AskDocumentRequest(BaseModel):
         default=None,
         description="Optional per-request API key overrides keyed by provider (anthropic, openai, gemini, openrouter)",
     )
+    session_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional reader session ID whose persisted provider API keys should be "
+            "used for this request (per-request api_keys take precedence)"
+        ),
+    )
 
 
 class AskDocumentResponse(BaseModel):
@@ -737,6 +751,13 @@ class AskContextRequest(BaseModel):
         default=None,
         description="Optional per-request API key overrides keyed by provider (anthropic, openai, gemini, openrouter)",
     )
+    session_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional reader session ID whose persisted provider API keys should be "
+            "used for this request (per-request api_keys take precedence)"
+        ),
+    )
 
 
 class AskContextResponse(BaseModel):
@@ -772,6 +793,13 @@ class ChatMessageRequest(BaseModel):
     api_keys: Optional[Dict[str, str]] = Field(
         default=None,
         description="Optional per-request API key overrides keyed by provider (anthropic, openai, gemini, openrouter)",
+    )
+    session_id: Optional[str] = Field(
+        default=None,
+        description=(
+            "Optional reader session ID whose persisted provider API keys should be "
+            "used for this request (per-request api_keys take precedence)"
+        ),
     )
 
 

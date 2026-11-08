@@ -8,7 +8,7 @@ from __future__ import annotations
 import html as html_lib
 import re
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urljoin
 
 from bs4 import BeautifulSoup, Comment, Tag
 import trafilatura
@@ -79,13 +79,27 @@ STRIP_TAGS = {
 }
 
 
+# Unambiguous challenge boilerplate used for *paragraph-level* stripping. Generic
+# phrases ("just a moment", "access denied", "attention required", "request
+# blocked") stay in BOT_CHALLENGE_PATTERNS for whole-page checks only, so a short
+# legitimate sentence in a real article is never removed.
+CHALLENGE_PARAGRAPH_PATTERNS = [
+    re.compile(r"javascript is disabled", re.IGNORECASE),
+    re.compile(r"please enable javascript", re.IGNORECASE),
+    re.compile(r"enable javascript to proceed", re.IGNORECASE),
+    re.compile(r"a required part of this site couldn'?t load", re.IGNORECASE),
+    re.compile(r"disable any ad blockers", re.IGNORECASE),
+    re.compile(r"may be due to a browser extension", re.IGNORECASE),
+]
+
+
 def _is_boilerplate_paragraph(text: str, limit: int = 140) -> bool:
-    """Short paragraphs matching paywall/anti-bot/redirect boilerplate are chrome, not content."""
+    """Short paragraphs matching paywall/unambiguous anti-bot boilerplate are chrome, not content."""
     if len(text) >= limit:
         return False
     if any(rx.search(text) for rx in PAYWALL_BOILERPLATE_PATTERNS):
         return True
-    return any(rx.search(text) for rx in BOT_CHALLENGE_PATTERNS)
+    return any(rx.search(text) for rx in CHALLENGE_PARAGRAPH_PATTERNS)
 
 
 def safe_hostname(url: str) -> Optional[str]:
@@ -262,12 +276,22 @@ def sanitize_and_extract_html(
         else url or None
     )
 
-    # og:image / twitter:image for library card thumbnails
-    image_url = (
+    # og:image / twitter:image for library card thumbnails. Relative URLs are
+    # resolved against the page URL; only absolute http(s) URLs <= 2048 chars
+    # are kept.
+    image_url = None
+    image_candidate = (
         _extract_meta(soup, "property", "og:image")
         or _extract_meta(soup, "name", "twitter:image")
         or _extract_meta(soup, "name", "twitter:image:src")
     )
+    if image_candidate:
+        resolved = urljoin(url or "", image_candidate.strip())
+        if (
+            urlparse(resolved).scheme in ("http", "https")
+            and len(resolved) <= 2048
+        ):
+            image_url = resolved
 
     stripped_count = 0
 
@@ -327,6 +351,10 @@ def sanitize_and_extract_html(
         if not isinstance(tag, Tag) or tag.attrs is None:
             continue
         if tag.name in ("html", "body", "article", "main", "p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote", "pre"):
+            continue
+        # Never strip chrome-heading matches nested inside article content —
+        # only standalone blocks outside <article>/<main> are chrome.
+        if tag.find_parent(["article", "main"]):
             continue
         text_val = re.sub(r"\s+", " ", tag.get_text(" ", strip=True)).strip()
         if not text_val:
@@ -465,7 +493,7 @@ def sanitize_and_extract_html(
         "reading_time_minutes": reading_time_minutes,
         "stripped_elements_count": stripped_count,
         "paywall_detected": paywall_detected,
-        "redirect_detected": bool(raw_redirect_hit),
+        "redirect_detected": bool(raw_redirect_hit and word_count < 100),
         "source_used": source_used,
         "passages": passages,
     }

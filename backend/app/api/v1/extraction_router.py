@@ -124,6 +124,7 @@ def _document_to_response(
     doc: Document,
     transcript_segments: Optional[List[Dict[str, Any]]] = None,
 ) -> ExtractedDocumentResponse:
+    """Serializes a Document ORM row (and optional transcript segments) into the API response model."""
     try:
         attempts_raw = json.loads(doc.source_attempts_json or "[]")
     except Exception:

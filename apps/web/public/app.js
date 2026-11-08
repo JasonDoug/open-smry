@@ -49,6 +49,25 @@ function showToast(message) {
   showToast._timer = setTimeout(() => el.classList.add("hidden"), 3200);
 }
 
+// Format FastAPI error details (which may be arrays or objects) into readable text.
+function formatErrorDetail(value) {
+  if (typeof value === "string") return value;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => (item && typeof item === "object" && item.msg ? String(item.msg) : String(item)))
+      .join("; ");
+  }
+  if (value && typeof value === "object") {
+    if (value.msg) return String(value.msg);
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return String(value);
+    }
+  }
+  return value == null ? "" : String(value);
+}
+
 async function apiFetch(endpoint, options = {}) {
   const headers = { ...(options.headers || {}) };
   if (!(options.body instanceof FormData) && !headers["Content-Type"]) {
@@ -60,7 +79,8 @@ async function apiFetch(endpoint, options = {}) {
     let errorDetail = `HTTP ${res.status}`;
     try {
       const errData = await res.json();
-      errorDetail = errData.detail || errData.error || errorDetail;
+      const detail = formatErrorDetail(errData.detail ?? errData.error);
+      errorDetail = detail || errorDetail;
     } catch {
       // ignore
     }
@@ -131,20 +151,35 @@ function escapeHtml(unsafe) {
 
 // Client-side safety-net stripper: removes distraction/paywall/chrome elements
 // that the backend sanitizer may have missed, so the reader stays clean.
-const READER_DISTRACTION_RE = /(paywall|cookie|consent|gdpr|onetrust|newsletter|subscribe|subscription|ad[-_]|advertisement|sponsored|popup|modal|overlay|social[-_]share|related[-_]post|outbrain|taboola|register[-_]wall|meter[-_]wall|signup|sign[-]in)/i;
+// Matching is whole-token (class/id/role value equals one of these names), so
+// article wrappers like "read-more", "post-modal-content", or
+// "cookie-policy-article" are preserved while "ad-container" or "cookie-banner"
+// are stripped.
+const READER_DISTRACTION_TOKENS = new Set([
+  "paywall", "paywall-overlay", "cookie", "cookie-banner", "cookie-consent",
+  "cookie-settings", "consent", "consent-modal", "gdpr", "onetrust",
+  "cybotcookiebot", "newsletter", "newsletter-modal", "newsletter-signup",
+  "subscribe", "subscribe-wall", "subscription-wall", "meter-wall",
+  "piano-modal", "reg-wall", "registration-wall", "ad", "ad-container",
+  "ad-slot", "ad-wrapper", "advertisement", "sponsored", "sponsored-box",
+  "popup", "popup-overlay", "modal-backdrop", "share-bar", "social-share",
+  "related-posts", "outbrain", "taboola", "signup", "sign-in"
+]);
 
 function stripReaderExtras(container) {
   if (!container) return;
   let removed = 0;
-  // Walk all elements and remove those matching distraction patterns in class/id/role
+  // Walk all elements and remove those whose class/id/role contains a
+  // whole token matching a distraction keyword.
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_ELEMENT, {
     acceptNode(node) {
       if (!(node instanceof Element)) return NodeFilter.FILTER_SKIP;
-      const cls = (node.getAttribute("class") || "");
-      const id = (node.getAttribute("id") || "");
-      const role = (node.getAttribute("role") || "");
-      const combined = `${cls} ${id} ${role}`;
-      if (READER_DISTRACTION_RE.test(combined)) {
+      const tokens = [];
+      for (const attr of ["class", "id", "role"]) {
+        const value = node.getAttribute(attr);
+        if (value) tokens.push(...value.toLowerCase().split(/\s+/));
+      }
+      if (tokens.some((t) => READER_DISTRACTION_TOKENS.has(t))) {
         return NodeFilter.FILTER_ACCEPT;
       }
       return NodeFilter.FILTER_SKIP;
@@ -187,8 +222,22 @@ function renderDocumentInReader(doc) {
   if (doc.author) bylineItems.push(`By ${doc.author}`);
   if (doc.published_time) bylineItems.push(doc.published_time);
   bylineItems.push(`${doc.word_count || 0} words (~${doc.reading_time_minutes || 1} min read)`);
-  if (doc.url) bylineItems.push(`<a href="${doc.url}" target="_blank" rel="noopener noreferrer">${doc.url}</a>`);
-  bylineEl.innerHTML = bylineItems.join("  •  ");
+  // Build byline via DOM nodes so scraped metadata is never injected as HTML;
+  // only render the source link when its protocol is http(s).
+  bylineEl.textContent = "";
+  bylineItems.forEach((item, idx) => {
+    if (idx > 0) bylineEl.append("  •  ");
+    bylineEl.append(item);
+  });
+  if (doc.url && /^https?:\/\//i.test(doc.url)) {
+    bylineEl.append("  •  ");
+    const link = document.createElement("a");
+    link.href = doc.url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    link.textContent = doc.url;
+    bylineEl.appendChild(link);
+  }
 
   // Stats badge
   statsBadge.textContent = `${doc.word_count || 0} words • ${doc.reading_time_minutes || 1}m read • ${doc.stripped_elements_count || 0} stripped`;
@@ -219,7 +268,8 @@ function renderDocumentInReader(doc) {
   if (qaResults) qaResults.classList.add("hidden");
   const summaryBox = document.getElementById("summary-output");
   if (summaryBox) {
-    summaryBox.innerHTML = `<span class="muted-small">Ready to summarize "${doc.title.slice(0, 48)}...". Click "Generate Summary" above.</span>`;
+    const safeTitle = doc.title || "Untitled Document";
+    summaryBox.innerHTML = `<span class="muted-small">Ready to summarize "${escapeHtml(safeTitle.slice(0, 48))}...". Click "Generate Summary" above.</span>`;
   }
 }
 
@@ -271,8 +321,12 @@ function renderMarkdown(text) {
   html = html.replace(/\*(.+?)\*/g, "<em>$1</em>");
   // Inline code
   html = html.replace(/`(.+?)`/g, "<code>$1</code>");
-  // Links
-  html = html.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>');
+  // Links — allow only http(s)/mailto schemes; other schemes stay plain text.
+  // Input is pre-escaped, so attribute values are already HTML-safe.
+  html = html.replace(/\[([^\]]+)\]\(([^)\s]+)\)/g, (match, label, href) => {
+    if (!/^(https?:\/\/|mailto:)/i.test(href)) return match;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer">${label}</a>`;
+  });
 
   // Bullet lists: convert lines starting with "- " into <li>, wrap consecutive ones in <ul>
   const lines = html.split("\n");
@@ -410,7 +464,8 @@ async function handleGenerateSummary() {
         provider,
         model,
         custom_prompt: mode === "custom" ? customPrompt : null,
-        api_keys: state.apiKeys
+        api_keys: state.apiKeys,
+        session_id: state.sessionId
       })
     });
 
@@ -460,22 +515,23 @@ async function handleVerifiableQa() {
         question,
         provider,
         model,
-        api_keys: state.apiKeys
+        api_keys: state.apiKeys,
+        session_id: state.sessionId
       })
     });
 
     const outputTokens = estimateTokens(data.answer || "");
     setProgress("qa-progress", "qa-token-count", false, null, inputTokens + outputTokens);
 
-    let html = `<div style="font-weight:600;margin-bottom:0.4rem;">Answer:</div><p style="margin:0 0 0.5rem 0;">${data.answer}</p>`;
+    let html = `<div style="font-weight:600;margin-bottom:0.4rem;">Answer:</div><p style="margin:0 0 0.5rem 0;">${escapeHtml(data.answer)}</p>`;
     if (data.citations && data.citations.length > 0) {
       html += `<div style="font-size:0.75rem;font-weight:700;text-transform:uppercase;color:var(--accent-color);margin-top:0.5rem;">Verified Citations:</div>`;
       for (const cit of data.citations) {
         html += `
           <div class="citation-card">
-            <em>"${cit.exact_quote}"</em>
+            <em>"${escapeHtml(cit.exact_quote)}"</em>
             <div style="font-size:0.7rem;color:var(--text-secondary);margin-top:0.25rem;">
-              Offsets: [chars ${cit.start_char}..${cit.end_char}] • Verified by Critic
+              Offsets: [chars ${escapeHtml(String(cit.start_char))}..${escapeHtml(String(cit.end_char))}] • Verified by Critic
             </div>
           </div>
         `;
@@ -529,7 +585,8 @@ async function handleChatSend(e) {
         message: text,
         provider,
         model,
-        api_keys: state.apiKeys
+        api_keys: state.apiKeys,
+        session_id: state.sessionId
       })
     });
 
@@ -547,34 +604,41 @@ async function handleChatSend(e) {
     const reader = res.body.getReader();
     const decoder = new TextDecoder("utf-8");
     let accumulated = "";
+    let buffer = "";
 
     assistantMsgEl.textContent = "";
+
+    const processLine = (line) => {
+      if (!line.startsWith("data: ")) return;
+      const payload = line.slice(6).trim();
+      if (payload === "[DONE]") return;
+      try {
+        const parsed = JSON.parse(payload);
+        if (parsed.thread_id && !state.chatThreadId) {
+          state.chatThreadId = parsed.thread_id;
+        }
+        if (parsed.token) {
+          accumulated += parsed.token;
+          assistantMsgEl.textContent = accumulated;
+          messagesBox.scrollTop = messagesBox.scrollHeight;
+        }
+      } catch {
+        // ignore non-json SSE lines
+      }
+    };
 
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-      const chunk = decoder.decode(value, { stream: true });
-      const lines = chunk.split("\n");
-      for (const line of lines) {
-        if (line.startsWith("data: ")) {
-          const payload = line.slice(6).trim();
-          if (payload === "[DONE]") continue;
-          try {
-            const parsed = JSON.parse(payload);
-            if (parsed.thread_id && !state.chatThreadId) {
-              state.chatThreadId = parsed.thread_id;
-            }
-            if (parsed.token) {
-              accumulated += parsed.token;
-              assistantMsgEl.textContent = accumulated;
-              messagesBox.scrollTop = messagesBox.scrollHeight;
-            }
-          } catch {
-            // ignore non-json SSE lines
-          }
-        }
-      }
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split("\n");
+      // Retain the incomplete trailing segment for the next read.
+      buffer = lines.pop() ?? "";
+      for (const line of lines) processLine(line.replace(/\r$/, ""));
     }
+    // Flush the decoder and process any final buffered line.
+    buffer += decoder.decode();
+    if (buffer) processLine(buffer.replace(/\r$/, ""));
     state.chatMessages.push({ role: "assistant", content: accumulated });
   } catch (err) {
     assistantMsgEl.textContent = `Error: ${err.message}`;
@@ -666,7 +730,7 @@ function buildLibraryCard(doc) {
   card.querySelector("[data-doc-id]").addEventListener("click", () => {
     showMainView("reader");
     renderDocumentInReader(doc);
-    showToast(`Loaded "${doc.title.slice(0, 36)}..."`);
+    showToast(`Loaded "${(doc.title || "Untitled Document").slice(0, 36)}..."`);
   });
   return card;
 }
@@ -692,7 +756,7 @@ function buildLibraryRow(doc) {
   row.querySelector("[data-doc-id]").addEventListener("click", () => {
     showMainView("reader");
     renderDocumentInReader(doc);
-    showToast(`Loaded "${doc.title.slice(0, 36)}..."`);
+    showToast(`Loaded "${(doc.title || "Untitled Document").slice(0, 36)}..."`);
   });
   return row;
 }
@@ -744,9 +808,14 @@ async function refreshLibrary() {
           <div class="row-meta">${escapeHtml(relTime(item.last_read_at))}</div>
         `;
         card.addEventListener("click", async () => {
-          const doc = await apiFetch(`/api/v1/documents/${item.document_id}`);
-          renderDocumentInReader(doc);
-          showToast(`Reopened "${doc.title.slice(0, 32)}..."`);
+          try {
+            const doc = await apiFetch(`/api/v1/documents/${item.document_id}`);
+            showMainView("reader");
+            renderDocumentInReader(doc);
+            showToast(`Reopened "${(doc.title || "Untitled Document").slice(0, 32)}..."`);
+          } catch (err) {
+            showToast(`Failed to open document: ${err.message}`);
+          }
         });
         histEl.appendChild(card);
       }
@@ -771,7 +840,7 @@ async function handleLibrarySearch() {
 
     listEl.innerHTML = "";
     if (data.passages.length === 0) {
-      listEl.innerHTML = `<div class="muted-small">No passages matched "${query}".</div>`;
+      listEl.innerHTML = `<div class="muted-small">No passages matched "${escapeHtml(query)}".</div>`;
       return;
     }
 
@@ -779,22 +848,27 @@ async function handleLibrarySearch() {
       const card = document.createElement("div");
       card.className = "library-card";
       card.innerHTML = `
-        <strong>${res.document_title || "Matching Passage"}</strong>
-        <p style="margin:0.25rem 0;font-size:0.8rem;line-height:1.4;">"${res.exact_quote.slice(0, 160)}..."</p>
+        <strong>${escapeHtml(res.document_title || "Matching Passage")}</strong>
+        <p style="margin:0.25rem 0;font-size:0.8rem;line-height:1.4;">"${escapeHtml((res.exact_quote || "").slice(0, 160))}..."</p>
         <div style="font-size:0.72rem;color:var(--text-secondary);display:flex;justify-content:space-between;align-items:center;">
-          <span>Offsets [${res.start_char}..${res.end_char}]${res.offset_verified ? " • ✓ Verified" : ""}</span>
-          <button type="button" class="btn-tiny" data-open-doc="${res.document_id}">Open Document</button>
+          <span>Offsets [${escapeHtml(String(res.start_char))}..${escapeHtml(String(res.end_char))}]${res.offset_verified ? " • ✓ Verified" : ""}</span>
+          <button type="button" class="btn-tiny" data-open-doc="${escapeHtml(res.document_id)}">Open Document</button>
         </div>
       `;
       card.querySelector("[data-open-doc]").addEventListener("click", async () => {
-        const doc = await apiFetch(`/api/v1/documents/${res.document_id}`);
-        renderDocumentInReader(doc);
-        showToast(`Opened "${doc.title.slice(0, 32)}..."`);
+        try {
+          const doc = await apiFetch(`/api/v1/documents/${res.document_id}`);
+          showMainView("reader");
+          renderDocumentInReader(doc);
+          showToast(`Opened "${(doc.title || "Untitled Document").slice(0, 32)}..."`);
+        } catch (err) {
+          showToast(`Failed to open document: ${err.message}`);
+        }
       });
       listEl.appendChild(card);
     }
   } catch (err) {
-    listEl.innerHTML = `<div style="color:#ef4444;">Search error: ${err.message}</div>`;
+    listEl.innerHTML = `<div style="color:#ef4444;">Search error: ${escapeHtml(err.message)}</div>`;
   }
 }
 
@@ -821,10 +895,13 @@ async function persistApiKey(provider, key) {
   };
   const field = keyMap[provider];
   if (!field) return;
-  await apiFetch(`/api/v1/sessions/${state.sessionId}/settings`, {
+  const resp = await apiFetch(`/api/v1/sessions/${state.sessionId}/settings`, {
     method: "PATCH",
     body: JSON.stringify({ [field]: key })
   });
+  if (resp && resp.settings) {
+    state.sessionSettings = resp.settings;
+  }
   state.apiKeys[provider] = key;
 }
 
