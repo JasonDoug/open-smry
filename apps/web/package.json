@@ -1,0 +1,11 @@
+{
+  "name": "@summary-ai/web",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Distraction-Free Web Reader UI, Source-Race Telemetry & Typography Customizer",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node server.mjs",
+    "test": "node --test test/*.test.mjs"
+  }
+}

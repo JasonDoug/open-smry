@@ -16,11 +16,15 @@ from readability import Document as ReadabilityDocument
 
 DISTRACTION_KEYWORDS_RE = re.compile(
     r"\b("
-    r"paywall|cookie-banner|cookie-consent|gdpr|onetrust|cybotcookiebot|"
+    r"paywall|cookie|cookie-banner|cookie-consent|gdpr|onetrust|cybotcookiebot|"
     r"newsletter-modal|newsletter-signup|subscribe-wall|subscription-wall|"
     r"meter-wall|piano-modal|reg-wall|registration-wall|ad-container|"
     r"ad-slot|ad-wrapper|advertisement|sponsored-box|popup-overlay|"
-    r"modal-backdrop|share-bar|social-share|related-posts|outbrain|taboola"
+    r"modal-backdrop|share-bar|social-share|related-posts|outbrain|taboola|"
+    r"global-nav|main-nav|site-nav|navigation|nav-menu|utility-nav|"
+    r"footer-nav|more-stories|popular-on|editors-picks|recommended|trending|"
+    r"cookie-settings|consent-modal|opt-out|targeting-sponsor|"
+    r"npr-plus|sponsor-message|audio-player|skip-to-main|keyboard-shortcut"
     r")\b",
     re.IGNORECASE,
 )
@@ -32,6 +36,31 @@ PAYWALL_BOILERPLATE_PATTERNS = [
     re.compile(r"please enable javascript and disable any ad blocker", re.IGNORECASE),
     re.compile(r"verify you are human", re.IGNORECASE),
     re.compile(r"create a free account to continue reading", re.IGNORECASE),
+]
+
+REDIRECT_INTERSTITIAL_PATTERNS = [
+    re.compile(r"please click here if you are not redirected", re.IGNORECASE),
+    re.compile(r"having trouble accessing google search", re.IGNORECASE),
+    re.compile(r"send feedback\s*\.\s*$", re.IGNORECASE),
+    re.compile(r"google search", re.IGNORECASE),
+    re.compile(r"search results page", re.IGNORECASE),
+    re.compile(r"webcache\.googleusercontent\.com", re.IGNORECASE),
+]
+
+# Anti-bot / JS-required interstitials served to non-browser clients (httpx has no JS engine).
+BOT_CHALLENGE_PATTERNS = [
+    re.compile(r"javascript is disabled", re.IGNORECASE),
+    re.compile(r"please enable javascript", re.IGNORECASE),
+    re.compile(r"enable javascript to proceed", re.IGNORECASE),
+    re.compile(r"a required part of this site couldn'?t load", re.IGNORECASE),
+    re.compile(r"disable any ad blockers", re.IGNORECASE),
+    re.compile(r"may be due to a browser extension", re.IGNORECASE),
+    re.compile(r"checking your browser", re.IGNORECASE),
+    re.compile(r"just a moment", re.IGNORECASE),
+    re.compile(r"attention required", re.IGNORECASE),
+    re.compile(r"unusual traffic from your computer network", re.IGNORECASE),
+    re.compile(r"access denied", re.IGNORECASE),
+    re.compile(r"request blocked", re.IGNORECASE),
 ]
 
 STRIP_TAGS = {
@@ -48,6 +77,15 @@ STRIP_TAGS = {
     "dialog",
     "button",
 }
+
+
+def _is_boilerplate_paragraph(text: str, limit: int = 140) -> bool:
+    """Short paragraphs matching paywall/anti-bot/redirect boilerplate are chrome, not content."""
+    if len(text) >= limit:
+        return False
+    if any(rx.search(text) for rx in PAYWALL_BOILERPLATE_PATTERNS):
+        return True
+    return any(rx.search(text) for rx in BOT_CHALLENGE_PATTERNS)
 
 
 def safe_hostname(url: str) -> Optional[str]:
@@ -179,6 +217,10 @@ def sanitize_and_extract_html(
     """
     html_text = str(raw_html or "")
     raw_paywall_hit = any(rx.search(html_text) for rx in PAYWALL_BOILERPLATE_PATTERNS)
+    raw_redirect_hit = (
+        any(rx.search(html_text) for rx in REDIRECT_INTERSTITIAL_PATTERNS)
+        or any(rx.search(html_text) for rx in BOT_CHALLENGE_PATTERNS)
+    )
 
     soup = BeautifulSoup(html_text, "lxml")
 
@@ -220,6 +262,13 @@ def sanitize_and_extract_html(
         else url or None
     )
 
+    # og:image / twitter:image for library card thumbnails
+    image_url = (
+        _extract_meta(soup, "property", "og:image")
+        or _extract_meta(soup, "name", "twitter:image")
+        or _extract_meta(soup, "name", "twitter:image:src")
+    )
+
     stripped_count = 0
 
     # 2. Remove comments
@@ -241,12 +290,49 @@ def sanitize_and_extract_html(
                 del tag["style"]
             continue
 
+        # Strip <header> elements that look like site navigation chrome (not article headers)
+        if tag.name == "header":
+            classes = " ".join(tag.get("class", [])) if isinstance(tag.get("class"), list) else str(tag.get("class", ""))
+            el_id = str(tag.get("id", ""))
+            combined_attr = f"{classes} {el_id}".lower()
+            if DISTRACTION_KEYWORDS_RE.search(combined_attr) or any(
+                k in combined_attr for k in ("global-nav", "main-nav", "site-nav", "utility-nav", "header-nav")
+            ):
+                tag.decompose()
+                stripped_count += 1
+                continue
+
         classes = " ".join(tag.get("class", [])) if isinstance(tag.get("class"), list) else str(tag.get("class", ""))
         el_id = str(tag.get("id", ""))
         role = str(tag.get("role", ""))
         combined_attr = f"{classes} {el_id} {role}"
 
         if DISTRACTION_KEYWORDS_RE.search(combined_attr):
+            tag.decompose()
+            stripped_count += 1
+
+    # 4b. Strip remaining chrome sections whose visible text indicates non-article chrome
+    # (e.g., "More Stories From NPR", "Popular on NPR.org", "Editors' Picks", cookie modals)
+    CHROME_HEADING_RE = re.compile(
+        r"\b(more stories|popular on|editors' picks|editors picks|cookie settings|"
+        r"consent legs|become an npr sponsor|get npr\+|npr does not offer|"
+        r"terms of use|privacy policy|text only|accessibility links|"
+        r"keyboard shortcuts|skip to main|donate|npr shop|newsletters|"
+        r"sign in|personalize your experience|about npr|public editor|corrections|"
+        r"transcripts|contact & help|support public radio|sponsor npr|npr careers|"
+        r"npr extra|diversity|network|finances)\b",
+        re.IGNORECASE,
+    )
+    for tag in list(soup.find_all(True)):
+        if not isinstance(tag, Tag) or tag.attrs is None:
+            continue
+        if tag.name in ("html", "body", "article", "main", "p", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote", "pre"):
+            continue
+        text_val = re.sub(r"\s+", " ", tag.get_text(" ", strip=True)).strip()
+        if not text_val:
+            continue
+        # Only strip standalone chrome blocks (not inline within article paragraphs)
+        if CHROME_HEADING_RE.match(text_val[:120]) and len(text_val) < 200:
             tag.decompose()
             stripped_count += 1
 
@@ -278,8 +364,8 @@ def sanitize_and_extract_html(
         text_val = re.sub(r"\s+", " ", node.get_text(" ", strip=True)).strip()
         if not text_val:
             continue
-        # Skip short paywall/cookie boilerplate paragraphs
-        if len(text_val) < 140 and any(rx.search(text_val) for rx in PAYWALL_BOILERPLATE_PATTERNS):
+        # Skip short paywall/cookie/anti-bot boilerplate paragraphs
+        if _is_boilerplate_paragraph(text_val):
             stripped_count += 1
             continue
         # Avoid duplicate nested captures
@@ -331,7 +417,7 @@ def sanitize_and_extract_html(
             cleaned = re.sub(r"\s+", " ", raw_para).strip()
             if not cleaned:
                 continue
-            if len(cleaned) < 140 and any(rx.search(cleaned) for rx in PAYWALL_BOILERPLATE_PATTERNS):
+            if _is_boilerplate_paragraph(cleaned):
                 stripped_count += 1
                 continue
             clean_html_blocks.append(f"<p>{html_lib.escape(cleaned)}</p>")
@@ -364,6 +450,7 @@ def sanitize_and_extract_html(
     return {
         "url": url,
         "canonical_url": canonical_url,
+        "image_url": image_url,
         "title": title,
         "author": author,
         "site_name": site_name,
@@ -378,6 +465,7 @@ def sanitize_and_extract_html(
         "reading_time_minutes": reading_time_minutes,
         "stripped_elements_count": stripped_count,
         "paywall_detected": paywall_detected,
+        "redirect_detected": bool(raw_redirect_hit),
         "source_used": source_used,
         "passages": passages,
     }

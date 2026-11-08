@@ -54,10 +54,16 @@ class ReaderSession(Base):
     margin_width: Mapped[str] = mapped_column(String(24), default="medium", nullable=False)  # narrow | medium | wide
 
     # AI & TTS Defaults
-    preferred_provider: Mapped[str] = mapped_column(String(32), default="claude", nullable=False)
-    preferred_model: Mapped[str] = mapped_column(String(128), default="claude-3-7-sonnet", nullable=False)
+    preferred_provider: Mapped[str] = mapped_column(String(32), default="openrouter", nullable=False)
+    preferred_model: Mapped[str] = mapped_column(String(128), default="openrouter/free", nullable=False)
     preferred_voice_id: Mapped[str] = mapped_column(String(32), default="aria-us-f", nullable=False)
     preferred_tts_speed: Mapped[float] = mapped_column(Float, default=1.0, nullable=False)
+
+    # Per-session API keys (overrides env vars for that session only)
+    anthropic_api_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    openai_api_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    gemini_api_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
+    openrouter_api_key: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
@@ -73,6 +79,7 @@ class Document(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: gen_id("doc"))
     url: Mapped[str] = mapped_column(String(2048), nullable=False, index=True)
     canonical_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
+    image_url: Mapped[Optional[str]] = mapped_column(String(2048), nullable=True)
     title: Mapped[str] = mapped_column(String(512), nullable=False)
     author: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     site_name: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)

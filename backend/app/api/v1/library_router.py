@@ -55,6 +55,7 @@ def _doc_to_library_summary(doc: Document) -> LibraryItemSummarySchema:
         title=doc.title,
         author=doc.author,
         site_name=doc.site_name,
+        image_url=doc.image_url,
         media_type=doc.media_type,
         excerpt=doc.excerpt,
         word_count=doc.word_count,

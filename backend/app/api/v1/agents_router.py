@@ -84,6 +84,7 @@ async def generate_document_summary(
         "custom_prompt": payload.custom_prompt,
         "provider": payload.provider,
         "model": payload.model,
+        "api_keys": payload.api_keys,
         "iteration": 0,
     }
 
@@ -200,6 +201,7 @@ async def ask_document_with_critic(
         "retrieved_passages": ranked,
         "provider": payload.provider,
         "model": payload.model,
+        "api_keys": payload.api_keys,
         "iteration": 0,
     }
 
@@ -251,6 +253,7 @@ async def ask_contextual_excerpt(
         "action_or_question": payload.action_or_question,
         "provider": payload.provider,
         "model": payload.model,
+        "api_keys": payload.api_keys,
         "iteration": 0,
     }
 
@@ -335,6 +338,32 @@ async def chat_interaction(
                     "content": f"You are a research assistant conversing about the document '{doc.title}'. Ground your answers in this text:\n\n{doc.text_content[:3000]}",
                 },
             )
+    else:
+        # Library-wide RAG context: retrieve relevant passages across ALL saved
+        # documents so questions like "tell me about articles relating to rome" work.
+        try:
+            ranked, _ = hybrid_search_passages(db, payload.message, top_k=5)
+        except Exception:
+            ranked = []
+        if ranked:
+            snippets = "\n\n".join(
+                f"- [{p.get('document_title', 'Untitled')}] "
+                f"( passage {p.get('paragraph_index', '?')} ) {p.get('exact_quote', '')[:400]}"
+                for p in ranked
+            )
+            messages.insert(
+                0,
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a research assistant with search access to the user's saved reading library. "
+                        "The most relevant passages from their library are:\n\n"
+                        f"{snippets}\n\n"
+                        "Answer using these passages and cite the [document title] each claim comes from. "
+                        "If nothing in the library is relevant, say so plainly."
+                    ),
+                },
+            )
 
     wants_stream = stream or "text/event-stream" in request.headers.get("accept", "").lower()
 
@@ -342,7 +371,7 @@ async def chat_interaction(
         async def event_generator() -> AsyncIterator[str]:
             full_response_parts: List[str] = []
             async for chunk in stream_chat_completion(
-                messages, provider=payload.provider, model=payload.model
+                messages, provider=payload.provider, model=payload.model, api_keys=payload.api_keys
             ):
                 full_response_parts.append(chunk)
                 payload_json = json.dumps({"thread_id": thread.id, "token": chunk})
@@ -373,6 +402,7 @@ async def chat_interaction(
         "messages": messages,
         "provider": payload.provider,
         "model": payload.model,
+        "api_keys": payload.api_keys,
     }
     result = await compiled_agent_graph.ainvoke(initial_state)
     answer = result.get("final_output") or ""

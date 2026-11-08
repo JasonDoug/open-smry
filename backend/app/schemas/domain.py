@@ -203,10 +203,15 @@ class ReaderSettingsSchema(BaseModel):
     font_size_px: int = Field(default=18, ge=14, le=32)
     line_height: float = Field(default=1.75, ge=1.2, le=2.4)
     margin_width: Literal["narrow", "medium", "wide"] = "medium"
-    preferred_provider: Literal["claude", "gpt", "gemini", "openrouter", "ollama"] = "claude"
-    preferred_model: str = "claude-3-7-sonnet"
+    preferred_provider: Literal["claude", "gpt", "gemini", "openrouter", "ollama"] = "openrouter"
+    preferred_model: str = "openrouter/free"
     preferred_voice_id: str = "aria-us-f"
     preferred_tts_speed: float = Field(default=1.0, ge=0.5, le=2.0)
+    # Per-session API keys (masked on read; only presence is returned)
+    has_anthropic_key: bool = False
+    has_openai_key: bool = False
+    has_gemini_key: bool = False
+    has_openrouter_key: bool = False
 
 
 class ReaderSettingsUpdateRequest(BaseModel):
@@ -222,6 +227,7 @@ class ReaderSettingsUpdateRequest(BaseModel):
                 "preferred_model": "openrouter/free",
                 "preferred_voice_id": "aria-us-f",
                 "preferred_tts_speed": 1.0,
+                "openrouter_api_key": "sk-or-v1-...",
             }
         }
     )
@@ -234,6 +240,10 @@ class ReaderSettingsUpdateRequest(BaseModel):
     preferred_model: Optional[str] = None
     preferred_voice_id: Optional[str] = None
     preferred_tts_speed: Optional[float] = Field(default=None, ge=0.5, le=2.0)
+    anthropic_api_key: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    gemini_api_key: Optional[str] = None
+    openrouter_api_key: Optional[str] = None
 
 
 class AnonymousSessionResponse(BaseModel):
@@ -384,6 +394,7 @@ class ExtractedDocumentResponse(BaseModel):
     id: str
     url: str
     canonical_url: Optional[str] = None
+    image_url: Optional[str] = None
     title: str
     author: Optional[str] = None
     site_name: Optional[str] = None
@@ -435,6 +446,7 @@ class LibraryItemSummarySchema(BaseModel):
     author: Optional[str] = None
     site_name: Optional[str] = None
     media_type: str
+    image_url: Optional[str] = None
     excerpt: Optional[str] = None
     word_count: int
     reading_time_minutes: int
@@ -633,6 +645,10 @@ class SummarizeRequest(BaseModel):
         default=None,
         description="Model ID (e.g., 'openrouter/free', 'claude-3-7-sonnet', 'gpt-4o', 'qwen2.5:7b')",
     )
+    api_keys: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Optional per-request API key overrides keyed by provider (anthropic, openai, gemini, openrouter)",
+    )
 
     @model_validator(mode="after")
     def validate_custom_prompt(self) -> "SummarizeRequest":
@@ -674,6 +690,10 @@ class AskDocumentRequest(BaseModel):
     top_k: int = Field(default=5, ge=1, le=20)
     provider: Optional[Literal["claude", "gpt", "gemini", "openrouter", "ollama"]] = None
     model: Optional[str] = None
+    api_keys: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Optional per-request API key overrides keyed by provider (anthropic, openai, gemini, openrouter)",
+    )
 
 
 class AskDocumentResponse(BaseModel):
@@ -713,6 +733,10 @@ class AskContextRequest(BaseModel):
     )
     provider: Optional[Literal["claude", "gpt", "gemini", "openrouter", "ollama"]] = None
     model: Optional[str] = None
+    api_keys: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Optional per-request API key overrides keyed by provider (anthropic, openai, gemini, openrouter)",
+    )
 
 
 class AskContextResponse(BaseModel):
@@ -745,6 +769,10 @@ class ChatMessageRequest(BaseModel):
     )
     provider: Optional[Literal["claude", "gpt", "gemini", "openrouter", "ollama"]] = None
     model: Optional[str] = None
+    api_keys: Optional[Dict[str, str]] = Field(
+        default=None,
+        description="Optional per-request API key overrides keyed by provider (anthropic, openai, gemini, openrouter)",
+    )
 
 
 class ChatMessageSchema(BaseModel):

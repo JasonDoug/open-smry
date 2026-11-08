@@ -10,14 +10,37 @@ Sprint 4 Test Suite:
 from __future__ import annotations
 
 import json
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 
-client = TestClient(app)
+
+@pytest.fixture()
+def client(tmp_path):
+    """Isolated per-test database so test runs never pollute the live .data DB."""
+    from app.db.session import get_db, get_engine, get_session_factory, init_db
+
+    engine = get_engine(f"sqlite:///{tmp_path / 'test_sprint4.db'}")
+    init_db(engine)
+    TestingSessionLocal = get_session_factory(engine)
+
+    test_app = app
+
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    test_app.dependency_overrides[get_db] = override_get_db
+    with TestClient(test_app) as test_client:
+        yield test_client
+    test_app.dependency_overrides.pop(get_db, None)
 
 
-def test_summarize_modes_and_persistence() -> None:
+def test_summarize_modes_and_persistence(client) -> None:
     # 1. Ingest test article
     ingest_res = client.post(
         "/api/v1/extract/book",
@@ -106,7 +129,7 @@ def test_summarize_modes_and_persistence() -> None:
     assert "custom_prompt is required" in invalid_custom.text
 
 
-def test_map_reduce_long_document() -> None:
+def test_map_reduce_long_document(client) -> None:
     # Generate 18 distinct paragraphs to trigger Map-Reduce
     paragraphs = [
         f"Paragraph {i}: Detailed analytical passage examining system component number {i} with distinct technical specifications and empirical measurements."
@@ -140,7 +163,7 @@ def test_map_reduce_long_document() -> None:
     assert len(data["content"]) > 50
 
 
-def test_verifiable_qa_with_critic_agent() -> None:
+def test_verifiable_qa_with_critic_agent(client) -> None:
     ingest_res = client.post(
         "/api/v1/extract/book",
         json={
@@ -192,7 +215,7 @@ def test_verifiable_qa_with_critic_agent() -> None:
     assert bad_ask.status_code == 422
 
 
-def test_contextual_excerpt_analyst() -> None:
+def test_contextual_excerpt_analyst(client) -> None:
     quote = "Grounding every summary sentence in exact-offset quotations eliminates citation fraud."
     ingest_res = client.post(
         "/api/v1/extract/book",
@@ -245,7 +268,7 @@ def test_contextual_excerpt_analyst() -> None:
     assert bad_ctx.status_code == 422
 
 
-def test_chat_interaction_and_sse_streaming() -> None:
+def test_chat_interaction_and_sse_streaming(client) -> None:
     # 1. Standard JSON chat
     chat_res = client.post(
         "/api/v1/chat",

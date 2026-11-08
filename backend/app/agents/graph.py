@@ -56,9 +56,10 @@ async def chat_node(state: AgentState) -> AgentState:
     messages = state.get("messages") or []
     provider = state.get("provider")
     model = state.get("model")
+    api_keys = state.get("api_keys")
 
     text, provider_used, model_used = await chat_completion(
-        messages, provider=provider, model=model
+        messages, provider=provider, model=model, api_keys=api_keys
     )
     state["final_output"] = text
     state["provider_used"] = provider_used

@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     app_name: str = "Summary AI — Agentic Reading, Summarizing & Research API"
     app_version: str = "1.0.0"
     host: str = "0.0.0.0"
-    port: int = 8000
+    port: int = 8001
     database_url: str = "sqlite:///./.data/summary_ai.db"
 
     # Cloud LLM Provider Keys
@@ -26,9 +26,9 @@ class Settings(BaseSettings):
     gemini_api_key: Optional[str] = None
 
     # Default Cloud Models
-    default_claude_model: str = "claude-3-7-sonnet-latest"
-    default_gpt_model: str = "gpt-4o"
-    default_gemini_model: str = "gemini-2.5-pro"
+    default_claude_model: str = "openrouter/free"
+    default_gpt_model: str = "openrouter/free"
+    default_gemini_model: str = "openrouter/free"
 
     # OpenRouter Support (https://openrouter.ai/api/v1)
     openrouter_api_key: Optional[str] = None

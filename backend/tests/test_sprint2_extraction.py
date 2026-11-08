@@ -285,3 +285,269 @@ def test_pdf_epub_and_markdown_book_ingestion(sprint2_client):
     assert epub_data["source_used"] == "epub-parser"
     assert "Paxos and Raft guarantee safety" in epub_data["text_content"]
     assert epub_data["passages"][0]["page_or_timestamp"] == "Chapter 1: Consensus Protocols"
+
+
+def test_redirect_interstitial_page_not_selected(sprint2_client):
+    """Google cache may return a search redirect page instead of the cached article.
+    Redirect/interstitial pages must be detected and not chosen as the winner when
+    a real article mirror is available.
+    """
+    app, client = sprint2_client
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        url_str = str(request.url)
+        if "webcache.googleusercontent.com" in url_str:
+            # Google cache is dead; returns a Google Search interstitial page
+            return httpx.Response(
+                200,
+                text="""
+                <html>
+                  <head><title>Google Search</title></head>
+                  <body>
+                    <p>Please click here if you are not redirected within a few seconds.</p>
+                    <p>If you're having trouble accessing Google Search, please click here , or send feedback .</p>
+                  </body>
+                </html>
+                """,
+            )
+        # Direct and wayback return a real article
+        return httpx.Response(
+            200,
+            text="""
+            <html>
+              <head><title>Real Climate Report</title></head>
+              <body>
+                <article>
+                  <h1>Real Climate Report</h1>
+                  <p>This is a full investigative article about climate policy with substantive analysis and data.</p>
+                  <p>Satellite spectrometry across twelve orbital sensors confirmed a 42 percent reduction in industrial methane plumes over twenty-four months.</p>
+                </article>
+              </body>
+            </html>
+            """,
+        )
+
+    mock_async_client = httpx.AsyncClient(transport=httpx.MockTransport(mock_handler))
+    app.dependency_overrides[get_http_client] = lambda: mock_async_client
+
+    try:
+        res = client.post(
+            "/api/v1/extract/url",
+            json={
+                "url": "https://news.example.org/climate-report",
+                "source": "auto",
+                "save_to_library": True,
+            },
+        )
+        assert res.status_code == 201
+        data = res.json()
+        # The real article (direct or wayback) must win, not the googlecache redirect
+        assert data["source_used"] != "googlecache", "Google cache redirect page must not be selected"
+        assert "42 percent reduction" in data["text_content"]
+
+        # The googlecache attempt should be flagged as a redirect and score 0 (excluded)
+        gcache_attempt = next(
+            (a for a in data["source_attempts"] if a["source"] == "googlecache"), None
+        )
+        assert gcache_attempt is not None
+        assert gcache_attempt["selected"] is False
+        assert gcache_attempt["score"] == 0.0
+    finally:
+        app.dependency_overrides.pop(get_http_client, None)
+
+
+def test_all_mirrors_redirect_raises_runtime_error(sprint2_client):
+    """If every mirror returns a redirect/interstitial page, extraction must fail
+    rather than return garbage content."""
+    app, client = sprint2_client
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            text="""
+            <html>
+              <head><title>Google Search</title></head>
+              <body>
+                <p>Please click here if you are not redirected within a few seconds.</p>
+                <p>send feedback .</p>
+              </body>
+            </html>
+            """,
+        )
+
+    mock_async_client = httpx.AsyncClient(transport=httpx.MockTransport(mock_handler))
+    app.dependency_overrides[get_http_client] = lambda: mock_async_client
+
+    try:
+        res = client.post(
+            "/api/v1/extract/url",
+            json={"url": "https://news.example.org/climate-report", "source": "auto"},
+        )
+        assert res.status_code == 502
+        assert "Unable to extract readable content" in res.json()["detail"]
+    finally:
+        app.dependency_overrides.pop(get_http_client, None)
+
+
+def test_sanitizer_strips_npr_style_chrome():
+    """NPR article HTML contains heavy navigation chrome (global nav, footer links,
+    'More Stories', 'Popular on', cookie settings modals, audio player chrome).
+    The sanitizer must strip all of this and leave only the article body."""
+    noisy_html = """
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <title>The leader of a Kenyan doomsday cult is sentenced to 200 years in prison</title>
+        <meta property="og:title" content="The leader of a Kenyan doomsday cult is sentenced to 200 years in prison" />
+        <meta name="author" content="The Associated Press" />
+        <meta property="og:site_name" content="NPR" />
+        <meta property="article:published_time" content="2026-11-06T09:53:46-05:00" />
+      </head>
+      <body>
+        <!-- Site navigation chrome -->
+        <header class="global-nav">
+          <div class="npr-logo">NPR</div>
+          <nav class="main-nav">
+            <ul><li><a href="/">Home</a></li><li><a href="/news">News</a></li></ul>
+          </nav>
+        </header>
+
+        <!-- Cookie settings modal -->
+        <div class="cookie-settings consent-modal" role="dialog">
+          <h2>Cookie Settings</h2>
+          <p>When you visit our website we store cookies...</p>
+          <button>Allow All</button>
+          <button>Manage Consent Preferences</button>
+        </div>
+
+        <!-- Audio player chrome -->
+        <div class="audio-player">
+          <span>Skip to main content</span>
+          <span>Keyboard shortcuts for audio player</span>
+          <div>Play Live Radio</div>
+        </div>
+
+        <article>
+          <h1>The leader of a Kenyan doomsday cult is sentenced to 200 years in prison</h1>
+          <p>MOMBASA, Kenya — The leader of a Kenyan doomsday cult linked to the deaths of more than 400 people was sentenced on Friday to 200 years in prison for the murders of 191 people.</p>
+          <p>The High Court in Kenya's coastal city of Mombasa issued the sentence for Pastor Paul Mackenzie.</p>
+        </article>
+
+        <!-- Footer chrome -->
+        <footer class="footer-nav">
+          <div class="more-stories">
+            <h3>More Stories From NPR</h3>
+            <ul><li><a href="/story1">Story 1</a></li></ul>
+          </div>
+          <div class="popular-on">
+            <h3>Popular on NPR.org</h3>
+            <ul><li><a href="/story2">Story 2</a></li></ul>
+          </div>
+        </footer>
+      </body>
+    </html>
+    """
+
+    extracted = sanitize_and_extract_html(noisy_html, url="https://www.npr.org/2026/11/06/nx-s1-6032593/kenya-cult-leader-paul-mackenzie-sentenced-murder")
+
+    # Article title and metadata preserved
+    assert "The leader of a Kenyan doomsday cult" in extracted["title"]
+    assert extracted["site_name"] == "NPR"
+    assert extracted["author"] == "The Associated Press"
+
+    # Article body preserved
+    assert "MOMBASA, Kenya" in extracted["text_content"]
+    assert "Pastor Paul Mackenzie" in extracted["text_content"]
+    assert "200 years in prison" in extracted["text_content"]
+
+    # Chrome stripped: navigation, cookie modal, audio player, footer
+    assert "Cookie Settings" not in extracted["text_content"]
+    assert "Allow All" not in extracted["text_content"]
+    assert "Manage Consent Preferences" not in extracted["text_content"]
+    assert "Skip to main content" not in extracted["text_content"]
+    assert "Keyboard shortcuts" not in extracted["text_content"]
+    assert "Play Live Radio" not in extracted["text_content"]
+    assert "More Stories From NPR" not in extracted["text_content"]
+    assert "Popular on NPR.org" not in extracted["text_content"]
+    assert "NPR" not in extracted["text_content"] or extracted["text_content"].count("NPR") <= 1
+
+    # stripped_elements_count should reflect removed chrome
+    assert extracted["stripped_elements_count"] >= 5
+
+
+def test_bot_challenge_page_rejected_in_race(sprint2_client):
+    """Direct fetch on JS-heavy sites returns anti-bot interstitials ('JavaScript is
+    disabled', 'A required part of this site couldn't load'). These must score 0 and
+    never win the race when a real mirror is available."""
+    app, client = sprint2_client
+
+    def mock_handler(request: httpx.Request) -> httpx.Response:
+        url_str = str(request.url)
+        if "web.archive.org" in url_str:
+            return httpx.Response(
+                200,
+                text="""
+                <html>
+                  <head><title>Archived Full Article</title></head>
+                  <body>
+                    <article>
+                      <h1>Archived Full Article</h1>
+                      <p>The archived mirror serves the complete investigative text without any bot challenge or truncation whatsoever.</p>
+                      <p>Independent verification confirmed every quoted measurement across three separate continental reporting stations.</p>
+                    </article>
+                  </body>
+                </html>
+                """,
+            )
+        # Direct and jina serve anti-bot JS-required interstitials
+        return httpx.Response(
+            200,
+            text="""
+            <html>
+              <head><title>Access Denied</title></head>
+              <body>
+                <noscript>JavaScript is disabled in your browser. Please enable JavaScript to proceed.</noscript>
+                <p>A required part of this site couldn't load. This may be due to a browser extension, network issues, or browser settings. Please check your connection, disable any ad blockers, or try using a different browser.</p>
+              </body>
+            </html>
+            """,
+        )
+
+    mock_async_client = httpx.AsyncClient(transport=httpx.MockTransport(mock_handler))
+    app.dependency_overrides[get_http_client] = lambda: mock_async_client
+
+    try:
+        res = client.post(
+            "/api/v1/extract/url",
+            json={"url": "https://news.example.org/bot-guarded-story", "source": "auto"},
+        )
+        assert res.status_code == 201
+        data = res.json()
+        assert data["source_used"] == "wayback"
+        assert "JavaScript is disabled" not in data["text_content"]
+
+        direct_attempt = next(a for a in data["source_attempts"] if a["source"] == "direct")
+        assert direct_attempt["score"] == 0.0
+        assert direct_attempt["selected"] is False
+    finally:
+        app.dependency_overrides.pop(get_http_client, None)
+
+
+def test_sanitizer_strips_js_challenge_boilerplate_paragraphs():
+    """When a challenge page shares the DOM with real content, the challenge
+    paragraphs must be stripped from text_content."""
+    mixed_html = """
+    <html><body>
+      <article>
+        <p>JavaScript is disabled in your browser. Please enable JavaScript to proceed.</p>
+        <p>The genuine article body begins here with substantive analytical reporting content.</p>
+        <p>A required part of this site couldn't load. This may be due to a browser extension, network issues.</p>
+        <p>More genuine analysis follows with additional verified factual claims and sourced quotations.</p>
+      </article>
+    </body></html>
+    """
+    extracted = sanitize_and_extract_html(mixed_html, url="https://example.org/mixed")
+    assert "JavaScript is disabled" not in extracted["text_content"]
+    assert "couldn't load" not in extracted["text_content"]
+    assert "genuine article body" in extracted["text_content"]
+    assert extracted["redirect_detected"] is True

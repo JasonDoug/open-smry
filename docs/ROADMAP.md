@@ -209,14 +209,22 @@ flowchart LR
     * One-click **Copy to LLMs** button and **Save & File** workflow.
 * **Post-Sprint Checkpoint:** Automated UI & E2E tests + live browser walkthrough on `http://localhost:3333`.
 
-### Sprint 6: Multi-Color Highlights, Margin Notes Sidebar & One-Click PKM Exports
+### Sprint 6: Multi-Color Highlights, Margin Notes Sidebar, Beautiful Library Cards, API Key Settings, Token Counter & Progress Indicator & One-Click PKM Exports
 * **Core Practice:** *DOM Range Anchoring & Knowledge Graph Interoperability*
 * **Features Included:** Ranks **#19, #20, #21**
 * **Deliverables:**
   * Interactive text-selection popover in the Reader for **5-color highlighting** (`Yellow`, `Green`, `Blue`, `Purple`, `Coral`), attaching **personal margin notes**, or triggering **Contextual "Ask AI"**.
   * Dedicated **Annotations Sidebar Drawer** with real-time keyword search, color tag filter chips, and click-to-scroll-to-passage.
+  * **Beautiful Library Card Grid:** Saved documents displayed as rich cards with cover gradient, title, excerpt preview, media/source badges, word count, reading time, tags, and hover effects — replacing the plain list view.
+  * **AI Provider & API Key Settings Page:** Provider dropdown (Claude, GPT, Gemini, OpenRouter, Ollama), per-provider API key inputs (stored per-session, overriding env vars), and model override field — enabling real LLM calls instead of deterministic simulation.
+  * **Token Counter & Progress Indicator:** Per-request input/output token estimates (chars ÷ 4) and a spinning progress indicator shown during summarization, Q&A, and streaming chat so the user can see processing is still active.
   * **PKM Exporters (`backend/app/exporters/pkm.py` + UI buttons):** One-click export of structured highlights, notes, exact citations, and summaries to **Notion**, **Obsidian**, **Roam Research**, **Markdown**, and **JSON**.
-* **Post-Sprint Checkpoint:** `pytest` exporter schema tests + live browser demo of highlighting, filtering, and exporting to Obsidian/Notion/Roam.
+  * **Library Management States & Detail Panel** *(queued — not yet started)*:
+    * **Reading-Progress States:** Per-document `Unread / In progress (%)/ Read` tracking with progress persisted in the DB and rendered as badges in library cards/rows (smry-style "2m • In progress • 80%").
+    * **Starred & Archive States:** Star/archive toggles on documents with `Later / Starred / Archive` filter chips in the library header.
+    * **Tag Management:** Create/rename/delete tags, assign tags to documents, "All tags" filter dropdown, and "+ New tag" flow.
+    * **Right-Hand Detail Panel:** Click a library item to open a detail sidebar showing Published, Length (words + read time), Status, Type, Saved/Last-read dates, Progress, and its Tags — plus quick actions (Send to Obsidian, Star, Archive).
+* **Post-Sprint Checkpoint:** `pytest` exporter schema tests + live browser demo of highlighting, filtering, and exporting to Obsidian/Notion/Roam, plus library card grid walkthrough, API key settings page demo, and token counter / progress indicator demo.
 
 ### Sprint 7: Natural Voice Neural TTS Engine (10 Voices/Accents), Karaoke Word-by-Word Sync & Floating Player
 * **Core Practice:** *Real-Time Audio/Text Alignment & Media Streaming*

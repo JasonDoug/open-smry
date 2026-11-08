@@ -3,7 +3,7 @@ SQLAlchemy Engine & Session Management.
 """
 import os
 from typing import Generator
-from sqlalchemy import create_engine, Engine
+from sqlalchemy import create_engine, Engine, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
 
 from app.config import get_settings
@@ -31,9 +31,35 @@ def get_engine(database_url: str | None = None) -> Engine:
     return _engine
 
 
+def _migrate_schema(engine: Engine) -> None:
+    """Add columns that were introduced after existing databases were created."""
+    inspector = inspect(engine)
+    for table_name in inspector.get_table_names():
+        if table_name == "reader_sessions":
+            existing_cols = {col["name"] for col in inspector.get_columns(table_name)}
+            additions = {
+                "anthropic_api_key": "VARCHAR(512)",
+                "openai_api_key": "VARCHAR(512)",
+                "gemini_api_key": "VARCHAR(512)",
+                "openrouter_api_key": "VARCHAR(512)",
+            }
+            with engine.begin() as conn:
+                for col_name, col_type in additions.items():
+                    if col_name not in existing_cols:
+                        conn.execute(
+                            text(f'ALTER TABLE reader_sessions ADD COLUMN {col_name} {col_type}')
+                        )
+        elif table_name == "documents":
+            existing_cols = {col["name"] for col in inspector.get_columns(table_name)}
+            if "image_url" not in existing_cols:
+                with engine.begin() as conn:
+                    conn.execute(text("ALTER TABLE documents ADD COLUMN image_url VARCHAR(2048)"))
+
+
 def init_db(engine: Engine | None = None) -> Engine:
     target_engine = engine or get_engine()
     Base.metadata.create_all(bind=target_engine)
+    _migrate_schema(target_engine)
     return target_engine
 
 
