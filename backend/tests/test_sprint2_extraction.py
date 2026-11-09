@@ -551,3 +551,12 @@ def test_sanitizer_strips_js_challenge_boilerplate_paragraphs():
     assert "couldn't load" not in extracted["text_content"]
     assert "genuine article body" in extracted["text_content"]
     assert extracted["redirect_detected"] is True
+
+
+@pytest.mark.parametrize("image", ["http://[broken", "https://[invalid]/image.jpg", "/image.jpg", "javascript:alert(1)"])
+def test_optional_image_url_validation(image):
+    html = f'''<html><head><meta property="og:image" content="{image}"></head>
+    <body><article><h1>Article title</h1><p>Article text survives malformed image metadata.</p></article></body></html>'''
+    result = sanitize_and_extract_html(html, url="https://example.com/story")
+    assert "Article text survives" in result["text_content"]
+    assert result["image_url"] == ("https://example.com/image.jpg" if image == "/image.jpg" else None)

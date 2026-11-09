@@ -37,18 +37,22 @@ fi
 for port in 8001 3333; do
   pids="$(fuser "$port/tcp" 2>/dev/null || true)"
   if [[ -n "$pids" ]]; then
-    mine=0
+    unrelated=()
+    matched=()
     for pid in $pids; do
-      if tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q "open-smry\|uvicorn app.main\|apps/web/server.mjs"; then
-        mine=1
+      if tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -Eq '(^|[[:space:]/])uvicorn app\.main(:|[[:space:]]|$)|(^|[[:space:]/])apps/web/server\.mjs([[:space:]]|$)'; then
+        matched+=("$pid")
+      else
+        unrelated+=("$pid")
       fi
     done
-    if [[ "$mine" == 1 ]]; then
-      echo "Port $port is held by an orphaned open-smry process — killing it..."
-      fuser -k "$port/tcp" 2>/dev/null || true
+    if (( ${#matched[@]} )); then
+      echo "Port $port is held by orphaned open-smry processes — killing PIDs ${matched[*]}..."
+      kill "${matched[@]}" 2>/dev/null || true
       sleep 1
-    else
-      echo "ERROR: port $port is in use by an unrelated process (pids: $pids). Free it manually and retry." >&2
+    fi
+    if (( ${#unrelated[@]} )); then
+      echo "ERROR: port $port is in use by an unrelated process (pids: ${unrelated[*]}). Free it manually and retry." >&2
       exit 1
     fi
   fi

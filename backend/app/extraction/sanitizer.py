@@ -286,12 +286,15 @@ def sanitize_and_extract_html(
         or _extract_meta(soup, "name", "twitter:image:src")
     )
     if image_candidate:
-        resolved = urljoin(url or "", image_candidate.strip())
-        if (
-            urlparse(resolved).scheme in ("http", "https")
-            and len(resolved) <= 2048
-        ):
-            image_url = resolved
+        try:
+            resolved = urljoin(url or "", image_candidate.strip())
+            if (
+                urlparse(resolved).scheme in ("http", "https")
+                and len(resolved) <= 2048
+            ):
+                image_url = resolved
+        except ValueError:
+            pass  # Malformed optional image metadata must not abort extraction.
 
     stripped_count = 0
 

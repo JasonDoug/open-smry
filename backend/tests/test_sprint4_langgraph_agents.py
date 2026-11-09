@@ -330,3 +330,43 @@ def test_chat_interaction_and_sse_streaming(client) -> None:
         json={"document_id": "non_existent_doc_xyz", "message": "hello"},
     )
     assert bad_doc.status_code == 404
+
+
+def test_persisted_keys_require_strong_session_credential():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from fastapi import HTTPException
+    from app.api.v1.agents_router import _resolve_api_keys
+    from app.db.models import ReaderSession
+
+    db = Mock()
+    db.get.return_value = SimpleNamespace(
+        anthropic_api_key="saved", openai_api_key=None,
+        gemini_api_key=None, openrouter_api_key=None,
+    )
+    with pytest.raises(HTTPException) as exc:
+        _resolve_api_keys(db, "sess_0123456789ab", None)
+    assert exc.value.status_code == 403
+    db.get.assert_not_called()
+    assert _resolve_api_keys(db, "sess_0123456789ab", {"openai": "override"}) == {"openai": "override"}
+    db.get.assert_not_called()
+    assert _resolve_api_keys(db, None, None) == {}
+    credential = "sess_" + "a" * 48
+    assert _resolve_api_keys(db, credential, {"anthropic": "override"}) == {"anthropic": "override"}
+    db.get.assert_called_with(ReaderSession, credential)
+    assert _resolve_api_keys(db, credential, None) == {"anthropic": "saved"}
+    db.get.return_value = None
+    assert _resolve_api_keys(db, credential, None) == {}
+
+
+def test_stream_resolves_keys_before_response(client, monkeypatch):
+    from app.api.v1 import agents_router as module
+
+    def reject(*args):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Invalid credential")
+
+    monkeypatch.setattr(module, "_resolve_api_keys", reject)
+    response = client.post("/api/v1/chat?stream=true", json={"message": "Hello"})
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Invalid credential"

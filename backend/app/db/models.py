@@ -7,6 +7,7 @@ reading history, RSS feeds, and SHA-256 hashed API keys.
 from datetime import datetime, timezone
 from typing import List, Optional
 import uuid
+import secrets
 
 from sqlalchemy import (
     Boolean,
@@ -42,7 +43,7 @@ class ReaderSession(Base):
     """
     __tablename__ = "reader_sessions"
 
-    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: gen_id("sess"))
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=lambda: f"sess_{secrets.token_hex(24)}")
     sync_token: Mapped[Optional[str]] = mapped_column(String(128), unique=True, nullable=True, index=True)
     is_anonymous: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 

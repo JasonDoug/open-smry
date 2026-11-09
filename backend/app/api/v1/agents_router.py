@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import json
 import logging
+import re
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -61,6 +62,12 @@ def _resolve_api_keys(
     """
     keys: Dict[str, str] = {}
     if session_id:
+        # Session IDs are bearer credentials. Legacy 48-bit IDs are insufficient
+        # to authorize spending persisted provider keys.
+        if not re.fullmatch(r"sess_[0-9a-f]{48}", session_id):
+            if override:
+                return {k: v for k, v in override.items() if v}
+            raise HTTPException(status_code=403, detail="Create a new reader session to use saved API keys")
         sess = db.get(ReaderSession, session_id)
         if sess:
             column_map = {
@@ -403,13 +410,15 @@ async def chat_interaction(
     wants_stream = stream or "text/event-stream" in request.headers.get("accept", "").lower()
 
     if wants_stream:
+        api_keys = _resolve_api_keys(db, payload.session_id, payload.api_keys)
+
         async def event_generator() -> AsyncIterator[str]:
             full_response_parts: List[str] = []
             async for chunk in stream_chat_completion(
                 messages,
                 provider=payload.provider,
                 model=payload.model,
-                api_keys=_resolve_api_keys(db, payload.session_id, payload.api_keys),
+                api_keys=api_keys,
             ):
                 full_response_parts.append(chunk)
                 payload_json = json.dumps({"thread_id": thread.id, "token": chunk})
