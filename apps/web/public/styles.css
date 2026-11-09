@@ -1126,6 +1126,83 @@ input[type="range"] {
   color: #ef4444;
 }
 
+/* Karaoke TTS */
+.karaoke-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1rem 0 1.5rem 0;
+  flex-wrap: wrap;
+}
+
+.karaoke-voice-select,
+#karaoke-voice-select {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.4rem 0.6rem;
+  font-size: 0.8rem;
+}
+
+.karaoke-word {
+  cursor: pointer;
+  border-radius: 3px;
+  transition: background 0.1s ease;
+}
+
+.karaoke-word:hover {
+  background: var(--winner-bg);
+}
+
+.karaoke-word.karaoke-active {
+  background: var(--winner-bg);
+  box-shadow: 0 0 0 2px var(--winner-border);
+  color: var(--text-primary);
+}
+
+.karaoke-player {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: min(860px, 94vw);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 12px 12px 0 0;
+  box-shadow: 0 -6px 20px rgba(0, 0, 0, 0.35);
+  padding: 0.6rem 0.9rem;
+}
+
+.karaoke-player.hidden {
+  display: none !important;
+}
+
+.karaoke-player input[type="range"] {
+  flex: 1;
+  min-width: 120px;
+}
+
+.karaoke-time {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+#karaoke-speed-select {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 0.3rem 0.4rem;
+  font-size: 0.8rem;
+}
+
 /* Toast */
 .toast-notification {
   position: fixed;

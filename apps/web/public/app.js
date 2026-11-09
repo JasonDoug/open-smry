@@ -31,6 +31,7 @@ const state = {
   libraryFilter: "all",
   libraryDisplay: "cards",
   activeView: "reader",
+  karaoke: null,
   chatMessages: [
     {
       role: "assistant",
@@ -204,6 +205,7 @@ function stripReaderExtras(container) {
 // Render document into reader — prefers backend-sanitized content_html,
 // falls back to text_content with basic markdown rendering.
 function renderDocumentInReader(doc) {
+  if (state.karaoke) stopKaraoke({ restore: false });
   state.currentDocument = doc;
 
   const kickerEl = document.getElementById("article-kicker");
@@ -655,6 +657,176 @@ function showMainView(view) {
   if (library) library.classList.toggle("hidden", view !== "library");
   state.activeView = view;
   if (view === "library") refreshLibrary();
+}
+
+// ---------------------------------------------------------------------------
+// Karaoke TTS: synthesize with word timings, highlight words in real time,
+// click any word to seek audio to that timestamp.
+// ---------------------------------------------------------------------------
+
+function stopKaraoke({ restore = true } = {}) {
+  if (state.karaoke) {
+    if (state.karaoke.audio) {
+      state.karaoke.audio.pause();
+      state.karaoke.audio.src = "";
+    }
+    state.karaoke = null;
+  }
+  document.getElementById("karaoke-player").classList.add("hidden");
+  const toggleBtn = document.getElementById("karaoke-toggle-btn");
+  if (toggleBtn) toggleBtn.textContent = "🔊 Listen";
+  const statusEl = document.getElementById("karaoke-status");
+  if (statusEl) statusEl.textContent = "";
+  if (restore && state.currentDocument) {
+    renderDocumentInReader(state.currentDocument);
+  }
+}
+
+function renderKaraokeBody(doc, words) {
+  const bodyEl = document.getElementById("article-body");
+  const wordMap = new Map(words.map((w) => [w.char_start, w]));
+  const text = doc.text_content || "";
+  const paragraphs = text.split(/\n\s*\n/);
+  bodyEl.innerHTML = "";
+  let cursor = 0;
+
+  for (const para of paragraphs) {
+    const trimmedStart = text.indexOf(para, cursor);
+    const p = document.createElement("p");
+    p.className = "karaoke-para";
+    if (trimmedStart >= 0) {
+      // Emit words with exact source offsets as clickable spans.
+      let local = trimmedStart;
+      const wordRe = /\S+/g;
+      let m;
+      while ((m = wordRe.exec(para)) !== null) {
+        const charStart = trimmedStart + m.index;
+        const charEnd = charStart + m[0].length;
+        if (charStart > local) {
+          p.append(text.slice(local, charStart));
+        }
+        const span = document.createElement("span");
+        span.className = "karaoke-word";
+        span.dataset.cs = String(charStart);
+        span.dataset.ce = String(charEnd);
+        span.textContent = m[0];
+        if (wordMap.has(charStart)) {
+          const w = wordMap.get(charStart);
+          span.dataset.ms = String(w.start_ms);
+        }
+        p.appendChild(span);
+        local = charEnd;
+      }
+      if (local < trimmedStart + para.length) {
+        p.append(text.slice(local, trimmedStart + para.length));
+      }
+    } else {
+      p.textContent = para;
+    }
+    bodyEl.appendChild(p);
+    cursor = trimmedStart + para.length;
+  }
+}
+
+function seekKaraokeToChar(charStart) {
+  if (!state.karaoke) return;
+  const word = state.karaoke.words.find((w) => w.char_start <= charStart);
+  const target = word || state.karaoke.words[0];
+  if (target && state.karaoke.audio) {
+    state.karaoke.audio.currentTime = target.start_ms / 1000;
+    if (state.karaoke.audio.paused) state.karaoke.audio.play();
+  }
+}
+
+function highlightKaraokeWord() {
+  if (!state.karaoke) return;
+  const audio = state.karaoke.audio;
+  const ms = audio.currentTime * 1000;
+  const words = state.karaoke.words;
+  // Binary search: last word whose start_ms <= current position.
+  let lo = 0;
+  let hi = words.length - 1;
+  let active = null;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (words[mid].start_ms <= ms) {
+      active = words[mid];
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  if (state.karaoke.activeEl) state.karaoke.activeEl.classList.remove("karaoke-active");
+  if (active && active.end_ms >= ms - 3000) {
+    const el = document.querySelector(`.karaoke-word[data-cs="${active.char_start}"]`);
+    if (el) {
+      el.classList.add("karaoke-active");
+      state.karaoke.activeEl = el;
+    }
+  }
+  // Scrubber + time readout
+  const durationMs = Math.max(1, state.karaoke.durationMs || 0);
+  document.getElementById("karaoke-scrubber").value = String(Math.round((ms / durationMs) * 1000));
+  const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+  document.getElementById("karaoke-time").textContent =
+    `${fmt(audio.currentTime)} / ${fmt((state.karaoke.durationMs || 0) / 1000)}`;
+}
+
+async function startKaraoke() {
+  if (!state.currentDocument || !state.currentDocument.text_content) {
+    showToast("Load an article or book first to listen.");
+    return;
+  }
+  const text = state.currentDocument.text_content.slice(0, 10000);
+  const voiceId =
+    document.getElementById("karaoke-voice-select")?.value ||
+    state.sessionSettings?.preferred_voice_id ||
+    "aria-us-f";
+  const btn = document.getElementById("karaoke-toggle-btn");
+  const statusEl = document.getElementById("karaoke-status");
+  btn.disabled = true;
+  statusEl.textContent = "Synthesizing…";
+
+  try {
+    const data = await apiFetch("/api/v1/tts/synthesize", {
+      method: "POST",
+      body: JSON.stringify({
+        text,
+        voice_id: voiceId,
+        speed: state.sessionSettings?.preferred_tts_speed || 1.0,
+        session_id: state.sessionId
+      })
+    });
+
+    const audio = new Audio(`data:${data.mime_type};base64,${data.audio_base64}`);
+    audio.playbackRate = parseFloat(document.getElementById("karaoke-speed-select").value) || 1.0;
+
+    state.karaoke = {
+      audio,
+      words: data.words,
+      durationMs: data.duration_ms,
+      activeEl: null
+    };
+
+    renderKaraokeBody(state.currentDocument, data.words);
+
+    audio.addEventListener("timeupdate", highlightKaraokeWord);
+    audio.addEventListener("ended", () => {
+      if (state.karaoke?.activeEl) state.karaoke.activeEl.classList.remove("karaoke-active");
+      document.getElementById("karaoke-play-btn").textContent = "▶";
+    });
+
+    document.getElementById("karaoke-player").classList.remove("hidden");
+    document.getElementById("karaoke-play-btn").textContent = "⏸";
+    btn.textContent = "⏹ Stop";
+    statusEl.textContent = `${data.synthesis_engine} • ${data.words.length} words`;
+    await audio.play();
+  } catch (err) {
+    showToast(`TTS error: ${err.message}`);
+    statusEl.textContent = "";
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 // Library & History
@@ -1256,6 +1428,58 @@ async function init() {
       refreshLibrary();
     });
   }
+
+  // Karaoke word-click seek: click any highlighted word to jump audio there.
+  document.getElementById("article-body").addEventListener("click", (e) => {
+    const span = e.target.closest(".karaoke-word");
+    if (span && state.karaoke) {
+      const ms = parseFloat(span.dataset.ms || "0");
+      state.karaoke.audio.currentTime = ms / 1000;
+      if (state.karaoke.audio.paused) state.karaoke.audio.play();
+      document.getElementById("karaoke-play-btn").textContent = "⏸";
+    }
+  });
+
+  // Karaoke TTS controls
+  document.getElementById("karaoke-toggle-btn").addEventListener("click", () => {
+    if (state.karaoke) {
+      stopKaraoke();
+    } else {
+      startKaraoke();
+    }
+  });
+
+  const playBtn = document.getElementById("karaoke-play-btn");
+  playBtn.addEventListener("click", () => {
+    if (!state.karaoke) return;
+    if (state.karaoke.audio.paused) {
+      state.karaoke.audio.play();
+      playBtn.textContent = "⏸";
+    } else {
+      state.karaoke.audio.pause();
+      playBtn.textContent = "▶";
+    }
+  });
+
+  document.getElementById("karaoke-back-btn").addEventListener("click", () => {
+    if (state.karaoke) state.karaoke.audio.currentTime = Math.max(0, state.karaoke.audio.currentTime - 10);
+  });
+  document.getElementById("karaoke-fwd-btn").addEventListener("click", () => {
+    if (state.karaoke) state.karaoke.audio.currentTime += 10;
+  });
+
+  document.getElementById("karaoke-speed-select").addEventListener("change", (e) => {
+    if (state.karaoke) state.karaoke.audio.playbackRate = parseFloat(e.target.value);
+  });
+
+  const scrubber = document.getElementById("karaoke-scrubber");
+  scrubber.addEventListener("input", (e) => {
+    if (state.karaoke && state.karaoke.durationMs) {
+      state.karaoke.audio.currentTime = (parseFloat(e.target.value) / 1000) * (state.karaoke.durationMs / 1000);
+    }
+  });
+
+  document.getElementById("karaoke-close-btn").addEventListener("click", () => stopKaraoke());
 
   // Quickstart sample cards
   document.querySelectorAll(".quickstart-card").forEach((card) => {

@@ -32,6 +32,7 @@ from app.api.v1.router import router as v1_router
 from app.api.v1.extraction_router import extraction_router
 from app.api.v1.library_router import library_router
 from app.api.v1.agents_router import agents_router
+from app.api.v1.tts_router import tts_router
 from app.config import get_settings
 from app.db.session import init_db
 
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
     application.include_router(extraction_router)
     application.include_router(library_router)
     application.include_router(agents_router)
+    application.include_router(tts_router)
 
     @application.get("/", tags=["Root"], summary="Summary AI API Root & Sprint Status")
     def root_index() -> Dict[str, Any]:
@@ -107,6 +109,8 @@ def create_app() -> FastAPI:
                 "ask_document": "/api/v1/documents/{document_id}/ask",
                 "ask_context": "/api/v1/ask-context",
                 "chat": "/api/v1/chat",
+                "tts_voices": "/api/v1/tts/voices",
+                "tts_synthesize": "/api/v1/tts/synthesize",
             },
         }
 
