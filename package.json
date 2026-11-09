@@ -12,9 +12,11 @@
   "packageManager": "pnpm@11.8.0",
   "scripts": {
     "lint": "node scripts/verify-repo.mjs",
-    "test:ts": "node --test packages/shared/test/*.test.mjs",
-    "test:py": "cd backend && uv run pytest -v",
+    "test:ts": "node --test packages/shared/test/*.test.mjs apps/web/test/*.test.mjs",
+    "test:py": "cd backend && uv run python -m pytest -v",
     "test": "npm run lint && npm run test:ts && npm run test:py",
-    "dev:api": "cd backend && uv run uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
+    "dev:api": "cd backend && uv run python -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --reload",
+    "dev:web": "node apps/web/server.mjs",
+    "start": "node apps/web/server.mjs"
   }
 }

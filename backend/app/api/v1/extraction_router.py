@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import base64
 import json
+import logging
 from typing import Any, Dict, List, Optional
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
+
+logger = logging.getLogger(__name__)
 
 from app.db.models import Document, PassageChunk, ReadingHistory
 from app.db.session import get_db
@@ -63,6 +66,7 @@ def _persist_extracted_document(
     doc = Document(
         url=extracted.get("url") or "local://document",
         canonical_url=extracted.get("canonical_url"),
+        image_url=extracted.get("image_url"),
         title=final_title,
         author=extracted.get("author"),
         site_name=extracted.get("site_name"),
@@ -120,6 +124,7 @@ def _document_to_response(
     doc: Document,
     transcript_segments: Optional[List[Dict[str, Any]]] = None,
 ) -> ExtractedDocumentResponse:
+    """Serializes a Document ORM row (and optional transcript segments) into the API response model."""
     try:
         attempts_raw = json.loads(doc.source_attempts_json or "[]")
     except Exception:
@@ -134,6 +139,7 @@ def _document_to_response(
         id=doc.id,
         url=doc.url,
         canonical_url=doc.canonical_url,
+        image_url=doc.image_url,
         title=doc.title,
         author=doc.author,
         site_name=doc.site_name,
@@ -195,6 +201,12 @@ async def extract_article_url(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=str(exc)) from exc
+    except Exception as exc:
+        logger.exception("Extraction failed for %s", payload.url)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Extraction failed: {exc}",
+        ) from exc
 
     return _persist_extracted_document(
         db,

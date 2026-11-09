@@ -9,13 +9,35 @@ Sprint 3 Test Suite:
 """
 from __future__ import annotations
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 from app.rag.retriever import verify_exact_offset_invariant
 
 
-client = TestClient(app)
+@pytest.fixture()
+def client(tmp_path):
+    """Isolated per-test database so test runs never pollute the live .data DB."""
+    from app.db.session import get_db, get_engine, get_session_factory, init_db
+
+    engine = get_engine(f"sqlite:///{tmp_path / 'test_sprint3.db'}")
+    init_db(engine)
+    TestingSessionLocal = get_session_factory(engine)
+
+    test_app = app
+
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    test_app.dependency_overrides[get_db] = override_get_db
+    with TestClient(test_app) as test_client:
+        yield test_client
+    test_app.dependency_overrides.pop(get_db, None)
 
 
 def test_exact_offset_invariant_unit() -> None:
@@ -43,7 +65,7 @@ def test_exact_offset_invariant_unit() -> None:
     assert verified_bad is False
 
 
-def test_hybrid_rag_search_and_exact_offset_verification() -> None:
+def test_hybrid_rag_search_and_exact_offset_verification(client) -> None:
     book_payload = {
         "title": "Architecture of Verifiable RAG Systems",
         "author": "Dr. Grace Hopper",
@@ -103,7 +125,7 @@ def test_hybrid_rag_search_and_exact_offset_verification() -> None:
     assert full_text[top_passage["start_char"] : top_passage["end_char"]] == top_passage["exact_quote"]
 
 
-def test_library_crud_and_filtering() -> None:
+def test_library_crud_and_filtering(client) -> None:
     res = client.post(
         "/api/v1/extract/book",
         json={
@@ -148,7 +170,7 @@ def test_library_crud_and_filtering() -> None:
     assert get_res.status_code == 404
 
 
-def test_library_reindex_and_reading_history_and_cloud_sync() -> None:
+def test_library_reindex_and_reading_history_and_cloud_sync(client) -> None:
     res = client.post(
         "/api/v1/extract/book",
         json={

@@ -10,14 +10,37 @@ Sprint 4 Test Suite:
 from __future__ import annotations
 
 import json
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
 
-client = TestClient(app)
+
+@pytest.fixture()
+def client(tmp_path):
+    """Isolated per-test database so test runs never pollute the live .data DB."""
+    from app.db.session import get_db, get_engine, get_session_factory, init_db
+
+    engine = get_engine(f"sqlite:///{tmp_path / 'test_sprint4.db'}")
+    init_db(engine)
+    TestingSessionLocal = get_session_factory(engine)
+
+    test_app = app
+
+    def override_get_db():
+        db = TestingSessionLocal()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    test_app.dependency_overrides[get_db] = override_get_db
+    with TestClient(test_app) as test_client:
+        yield test_client
+    test_app.dependency_overrides.pop(get_db, None)
 
 
-def test_summarize_modes_and_persistence() -> None:
+def test_summarize_modes_and_persistence(client) -> None:
     # 1. Ingest test article
     ingest_res = client.post(
         "/api/v1/extract/book",
@@ -106,7 +129,7 @@ def test_summarize_modes_and_persistence() -> None:
     assert "custom_prompt is required" in invalid_custom.text
 
 
-def test_map_reduce_long_document() -> None:
+def test_map_reduce_long_document(client) -> None:
     # Generate 18 distinct paragraphs to trigger Map-Reduce
     paragraphs = [
         f"Paragraph {i}: Detailed analytical passage examining system component number {i} with distinct technical specifications and empirical measurements."
@@ -140,7 +163,7 @@ def test_map_reduce_long_document() -> None:
     assert len(data["content"]) > 50
 
 
-def test_verifiable_qa_with_critic_agent() -> None:
+def test_verifiable_qa_with_critic_agent(client) -> None:
     ingest_res = client.post(
         "/api/v1/extract/book",
         json={
@@ -192,7 +215,7 @@ def test_verifiable_qa_with_critic_agent() -> None:
     assert bad_ask.status_code == 422
 
 
-def test_contextual_excerpt_analyst() -> None:
+def test_contextual_excerpt_analyst(client) -> None:
     quote = "Grounding every summary sentence in exact-offset quotations eliminates citation fraud."
     ingest_res = client.post(
         "/api/v1/extract/book",
@@ -245,7 +268,7 @@ def test_contextual_excerpt_analyst() -> None:
     assert bad_ctx.status_code == 422
 
 
-def test_chat_interaction_and_sse_streaming() -> None:
+def test_chat_interaction_and_sse_streaming(client) -> None:
     # 1. Standard JSON chat
     chat_res = client.post(
         "/api/v1/chat",
@@ -307,3 +330,43 @@ def test_chat_interaction_and_sse_streaming() -> None:
         json={"document_id": "non_existent_doc_xyz", "message": "hello"},
     )
     assert bad_doc.status_code == 404
+
+
+def test_persisted_keys_require_strong_session_credential():
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+    from fastapi import HTTPException
+    from app.api.v1.agents_router import _resolve_api_keys
+    from app.db.models import ReaderSession
+
+    db = Mock()
+    db.get.return_value = SimpleNamespace(
+        anthropic_api_key="saved", openai_api_key=None,
+        gemini_api_key=None, openrouter_api_key=None,
+    )
+    with pytest.raises(HTTPException) as exc:
+        _resolve_api_keys(db, "sess_0123456789ab", None)
+    assert exc.value.status_code == 403
+    db.get.assert_not_called()
+    assert _resolve_api_keys(db, "sess_0123456789ab", {"openai": "override"}) == {"openai": "override"}
+    db.get.assert_not_called()
+    assert _resolve_api_keys(db, None, None) == {}
+    credential = "sess_" + "a" * 48
+    assert _resolve_api_keys(db, credential, {"anthropic": "override"}) == {"anthropic": "override"}
+    db.get.assert_called_with(ReaderSession, credential)
+    assert _resolve_api_keys(db, credential, None) == {"anthropic": "saved"}
+    db.get.return_value = None
+    assert _resolve_api_keys(db, credential, None) == {}
+
+
+def test_stream_resolves_keys_before_response(client, monkeypatch):
+    from app.api.v1 import agents_router as module
+
+    def reject(*args):
+        from fastapi import HTTPException
+        raise HTTPException(status_code=403, detail="Invalid credential")
+
+    monkeypatch.setattr(module, "_resolve_api_keys", reject)
+    response = client.post("/api/v1/chat?stream=true", json={"message": "Hello"})
+    assert response.status_code == 403
+    assert response.json()["detail"] == "Invalid credential"

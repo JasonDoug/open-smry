@@ -1,1 +1,3374 @@
-{"openapi":"3.1.0","info":{"title":"Summary AI — Agentic Reading, Summarizing & Research API","description":"Open-source agentic AI reading, summarizing, and research platform patterned after smry.ai. Powered by FastAPI, LangGraph multi-agent orchestration, Hybrid Vector/BM25 RAG with exact passage offsets, Edge-TTS neural Karaoke audio, and FastMCP.","license":{"name":"MIT License","url":"https://opensource.org/licenses/MIT"},"version":"1.0.0"},"paths":{"/api/v1/health":{"get":{"tags":["Sprint 1: Foundation, Meta & Sessions"],"summary":"Check API, Database & AI Provider Readiness","operationId":"health_check_api_v1_health_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"additionalProperties":true,"type":"object","title":"Response Health Check Api V1 Health Get"}}}}}}},"/api/v1/meta":{"get":{"tags":["Sprint 1: Foundation, Meta & Sessions"],"summary":"Get 7 Reader Fonts (incl. OpenDyslexic), 5 Highlight Colors, 10 TTS Voices & 5 AI Provider Families","operationId":"get_platform_meta_api_v1_meta_get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/PlatformMetaResponse"}}}}}}},"/api/v1/sessions/anonymous":{"post":{"tags":["Sprint 1: Foundation, Meta & Sessions"],"summary":"Create a No-Account-Required Instant Reader Session","operationId":"create_anonymous_session_api_v1_sessions_anonymous_post","requestBody":{"content":{"application/json":{"schema":{"anyOf":[{"$ref":"#/components/schemas/ReaderSettingsUpdateRequest"},{"type":"null"}],"title":"Initial Settings"}}}},"responses":{"201":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AnonymousSessionResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/sessions/{session_id}":{"get":{"tags":["Sprint 1: Foundation, Meta & Sessions"],"summary":"Retrieve Reader Session & Typography Preferences","operationId":"get_reader_session_api_v1_sessions__session_id__get","parameters":[{"name":"session_id","in":"path","required":true,"schema":{"type":"string","title":"Session Id"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AnonymousSessionResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/sessions/{session_id}/settings":{"patch":{"tags":["Sprint 1: Foundation, Meta & Sessions"],"summary":"Update Reader Customization (Theme, 7 Fonts incl. OpenDyslexic, Size, Spacing, Margins, AI & TTS)","operationId":"update_reader_session_settings_api_v1_sessions__session_id__settings_patch","parameters":[{"name":"session_id","in":"path","required":true,"schema":{"type":"string","title":"Session Id"}}],"requestBody":{"required":true,"content":{"application/json":{"schema":{"$ref":"#/components/schemas/ReaderSettingsUpdateRequest"}}}},"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"$ref":"#/components/schemas/AnonymousSessionResponse"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/api/v1/models/providers":{"get":{"tags":["Sprint 1: Foundation, Meta & Sessions"],"summary":"Discover Cloud LLMs (Claude, GPT, Gemini), OpenRouter & Local AI (Ollama / LM Studio / vLLM)","operationId":"discover_ai_providers_api_v1_models_providers_get","parameters":[{"name":"probe_ollama","in":"query","required":false,"schema":{"type":"boolean","default":true,"title":"Probe Ollama"}}],"responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"type":"object","additionalProperties":true,"title":"Response Discover Ai Providers Api V1 Models Providers Get"}}}},"422":{"description":"Validation Error","content":{"application/json":{"schema":{"$ref":"#/components/schemas/HTTPValidationError"}}}}}}},"/":{"get":{"tags":["Root"],"summary":"Summary AI API Root & Sprint Status","operationId":"root_index__get","responses":{"200":{"description":"Successful Response","content":{"application/json":{"schema":{"additionalProperties":true,"type":"object","title":"Response Root Index  Get"}}}}}}}},"components":{"schemas":{"AnonymousSessionResponse":{"properties":{"session_id":{"type":"string","title":"Session Id"},"is_anonymous":{"type":"boolean","title":"Is Anonymous","default":true},"no_account_required":{"type":"boolean","title":"No Account Required","default":true},"sync_token":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Sync Token"},"settings":{"$ref":"#/components/schemas/ReaderSettingsSchema"},"created_at":{"type":"string","format":"date-time","title":"Created At"},"updated_at":{"type":"string","format":"date-time","title":"Updated At"}},"type":"object","required":["session_id","settings","created_at","updated_at"],"title":"AnonymousSessionResponse"},"HTTPValidationError":{"properties":{"detail":{"items":{"$ref":"#/components/schemas/ValidationError"},"type":"array","title":"Detail"}},"type":"object","title":"HTTPValidationError"},"PlatformMetaResponse":{"properties":{"name":{"type":"string","title":"Name","default":"Summary AI"},"version":{"type":"string","title":"Version","default":"1.0.0"},"no_account_required":{"type":"boolean","title":"No Account Required","default":true},"reader_fonts":{"items":{"additionalProperties":{"type":"string"},"type":"object"},"type":"array","title":"Reader Fonts"},"highlight_colors":{"items":{"additionalProperties":{"type":"string"},"type":"object"},"type":"array","title":"Highlight Colors"},"extraction_sources":{"items":{"additionalProperties":{"type":"string"},"type":"object"},"type":"array","title":"Extraction Sources"},"summary_modes":{"items":{"additionalProperties":{"type":"string"},"type":"object"},"type":"array","title":"Summary Modes"},"ai_providers":{"items":{"additionalProperties":{"type":"string"},"type":"object"},"type":"array","title":"Ai Providers"},"ai_models":{"items":{"additionalProperties":{"type":"string"},"type":"object"},"type":"array","title":"Ai Models"},"tts_voices":{"items":{"additionalProperties":true,"type":"object"},"type":"array","title":"Tts Voices"},"default_reader_settings":{"$ref":"#/components/schemas/ReaderSettingsSchema"}},"type":"object","required":["reader_fonts","highlight_colors","extraction_sources","summary_modes","ai_providers","ai_models","tts_voices","default_reader_settings"],"title":"PlatformMetaResponse"},"ReaderSettingsSchema":{"properties":{"theme":{"type":"string","enum":["dark","light","sepia"],"title":"Theme","default":"dark"},"font_id":{"type":"string","title":"Font Id","description":"One of the 7 reader fonts including opendyslexic","default":"inter"},"font_size_px":{"type":"integer","maximum":32.0,"minimum":14.0,"title":"Font Size Px","default":18},"line_height":{"type":"number","maximum":2.4,"minimum":1.2,"title":"Line Height","default":1.75},"margin_width":{"type":"string","enum":["narrow","medium","wide"],"title":"Margin Width","default":"medium"},"preferred_provider":{"type":"string","enum":["claude","gpt","gemini","openrouter","ollama"],"title":"Preferred Provider","default":"claude"},"preferred_model":{"type":"string","title":"Preferred Model","default":"claude-3-7-sonnet"},"preferred_voice_id":{"type":"string","title":"Preferred Voice Id","default":"aria-us-f"},"preferred_tts_speed":{"type":"number","maximum":2.0,"minimum":0.5,"title":"Preferred Tts Speed","default":1.0}},"type":"object","title":"ReaderSettingsSchema"},"ReaderSettingsUpdateRequest":{"properties":{"theme":{"anyOf":[{"type":"string","enum":["dark","light","sepia"]},{"type":"null"}],"title":"Theme"},"font_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Font Id"},"font_size_px":{"anyOf":[{"type":"integer","maximum":32.0,"minimum":14.0},{"type":"null"}],"title":"Font Size Px"},"line_height":{"anyOf":[{"type":"number","maximum":2.4,"minimum":1.2},{"type":"null"}],"title":"Line Height"},"margin_width":{"anyOf":[{"type":"string","enum":["narrow","medium","wide"]},{"type":"null"}],"title":"Margin Width"},"preferred_provider":{"anyOf":[{"type":"string","enum":["claude","gpt","gemini","openrouter","ollama"]},{"type":"null"}],"title":"Preferred Provider"},"preferred_model":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Preferred Model"},"preferred_voice_id":{"anyOf":[{"type":"string"},{"type":"null"}],"title":"Preferred Voice Id"},"preferred_tts_speed":{"anyOf":[{"type":"number","maximum":2.0,"minimum":0.5},{"type":"null"}],"title":"Preferred Tts Speed"}},"type":"object","title":"ReaderSettingsUpdateRequest"},"ValidationError":{"properties":{"loc":{"items":{"anyOf":[{"type":"string"},{"type":"integer"}]},"type":"array","title":"Location"},"msg":{"type":"string","title":"Message"},"type":{"type":"string","title":"Error Type"},"input":{"title":"Input"},"ctx":{"type":"object","title":"Context"}},"type":"object","required":["loc","msg","type"],"title":"ValidationError"}}}}
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Summary AI \u2014 Agentic Reading, Summarizing & Research API",
+    "description": "Open-source agentic AI reading, summarizing, and research platform patterned after smry.ai. Powered by FastAPI, LangGraph multi-agent orchestration, Hybrid Vector/BM25 RAG with exact passage offsets, Edge-TTS neural Karaoke audio, and FastMCP.",
+    "license": {
+      "name": "MIT License",
+      "url": "https://opensource.org/licenses/MIT"
+    },
+    "version": "1.0.0"
+  },
+  "servers": [
+    {
+      "url": "http://localhost:8001",
+      "description": "Local Summary AI Server (no trailing slash for Bruno/Postman import)"
+    }
+  ],
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "tags": [
+          "Sprint 1: Foundation, Meta & Sessions"
+        ],
+        "summary": "Check API, Database & AI Provider Readiness",
+        "operationId": "health_check_api_v1_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Health Check Api V1 Health Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/meta": {
+      "get": {
+        "tags": [
+          "Sprint 1: Foundation, Meta & Sessions"
+        ],
+        "summary": "Get 7 Reader Fonts (incl. OpenDyslexic), 5 Highlight Colors, 10 TTS Voices & 5 AI Provider Families",
+        "operationId": "get_platform_meta_api_v1_meta_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlatformMetaResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/anonymous": {
+      "post": {
+        "tags": [
+          "Sprint 1: Foundation, Meta & Sessions"
+        ],
+        "summary": "Create a No-Account-Required Instant Reader Session",
+        "operationId": "create_anonymous_session_api_v1_sessions_anonymous_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ReaderSettingsUpdateRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Initial Settings"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymousSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "Sprint 1: Foundation, Meta & Sessions"
+        ],
+        "summary": "Retrieve Reader Session & Typography Preferences",
+        "operationId": "get_reader_session_api_v1_sessions__session_id__get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymousSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sessions/{session_id}/settings": {
+      "patch": {
+        "tags": [
+          "Sprint 1: Foundation, Meta & Sessions"
+        ],
+        "summary": "Update Reader Customization (Theme, 7 Fonts incl. OpenDyslexic, Size, Spacing, Margins, AI & TTS)",
+        "operationId": "update_reader_session_settings_api_v1_sessions__session_id__settings_patch",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReaderSettingsUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnonymousSessionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/models/providers": {
+      "get": {
+        "tags": [
+          "Sprint 1: Foundation, Meta & Sessions"
+        ],
+        "summary": "Discover Cloud LLMs (Claude, GPT, Gemini), OpenRouter & Local AI (Ollama / LM Studio / vLLM)",
+        "operationId": "discover_ai_providers_api_v1_models_providers_get",
+        "parameters": [
+          {
+            "name": "probe_ollama",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Probe Ollama"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Discover Ai Providers Api V1 Models Providers Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/extract/url": {
+      "post": {
+        "tags": [
+          "Sprint 2: Multi-Source Extraction, YouTube Transcripts & Books"
+        ],
+        "summary": "Extract Distraction-Free Article or Website by Racing Mirrors (Direct, Wayback, Cache, Jina)",
+        "operationId": "extract_article_url_api_v1_extract_url_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtractUrlRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractedDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/extract/youtube": {
+      "post": {
+        "tags": [
+          "Sprint 2: Multi-Source Extraction, YouTube Transcripts & Books"
+        ],
+        "summary": "Extract Timestamped Readable Transcript from a YouTube Video Link",
+        "operationId": "extract_youtube_video_api_v1_extract_youtube_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtractYouTubeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractedDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/extract/book": {
+      "post": {
+        "tags": [
+          "Sprint 2: Multi-Source Extraction, YouTube Transcripts & Books"
+        ],
+        "summary": "Ingest & Parse a Book or Long-Form Document (PDF, EPUB, Markdown, or Plain Text)",
+        "operationId": "extract_book_document_api_v1_extract_book_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtractBookRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractedDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}": {
+      "get": {
+        "tags": [
+          "Sprint 2: Multi-Source Extraction, YouTube Transcripts & Books"
+        ],
+        "summary": "Get an Extracted Article, Book, Website, or YouTube Transcript with Exact Passage Offsets",
+        "operationId": "get_extracted_document_api_v1_documents__document_id__get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtractedDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/copy-to-llm": {
+      "get": {
+        "tags": [
+          "Sprint 2: Multi-Source Extraction, YouTube Transcripts & Books"
+        ],
+        "summary": "One-Click Export of Stripped Article/Book into Clean Markdown Ready for ChatGPT, Claude, or Local LLMs",
+        "operationId": "get_document_copy_to_llm_api_v1_documents__document_id__copy_to_llm_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopyToLlmResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library": {
+      "get": {
+        "tags": [
+          "Sprint 3: Hybrid RAG Search, Exact Passage Verification, Library & Cloud Sync"
+        ],
+        "summary": "List & Filter Saved Library Articles, Websites, YouTube Transcripts, and Books",
+        "operationId": "list_library_documents_api_v1_library_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional keyword filter on title, excerpt, or URL",
+              "title": "Q"
+            },
+            "description": "Optional keyword filter on title, excerpt, or URL"
+          },
+          {
+            "name": "tag",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional tag filter (e.g., 'book', 'youtube', 'web')",
+              "title": "Tag"
+            },
+            "description": "Optional tag filter (e.g., 'book', 'youtube', 'web')"
+          },
+          {
+            "name": "media_type",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Optional media_type filter ('article', 'book', 'youtube')",
+              "title": "Media Type"
+            },
+            "description": "Optional media_type filter ('article', 'book', 'youtube')"
+          },
+          {
+            "name": "saved_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Filter to documents marked saved_in_library=True",
+              "default": true,
+              "title": "Saved Only"
+            },
+            "description": "Filter to documents marked saved_in_library=True"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryListResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/{document_id}": {
+      "patch": {
+        "tags": [
+          "Sprint 3: Hybrid RAG Search, Exact Passage Verification, Library & Cloud Sync"
+        ],
+        "summary": "Update a Library Document's Title, Tags, or Saved Status",
+        "operationId": "update_library_document_api_v1_library__document_id__patch",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LibraryUpdateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LibraryItemSummarySchema"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Sprint 3: Hybrid RAG Search, Exact Passage Verification, Library & Cloud Sync"
+        ],
+        "summary": "Delete a Document and its Indexed Passages from the Library",
+        "operationId": "delete_library_document_api_v1_library__document_id__delete",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Library Document Api V1 Library  Document Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/search": {
+      "post": {
+        "tags": [
+          "Sprint 3: Hybrid RAG Search, Exact Passage Verification, Library & Cloud Sync"
+        ],
+        "summary": "Hybrid BM25 + Dense Vector Search Returning Verifiable Exact-Offset Passages",
+        "operationId": "search_library_passages_api_v1_library_search_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HybridSearchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HybridSearchResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/library/reindex": {
+      "post": {
+        "tags": [
+          "Sprint 3: Hybrid RAG Search, Exact Passage Verification, Library & Cloud Sync"
+        ],
+        "summary": "Recompute Passage Embeddings Across Library (Deterministic or Local Ollama /api/embed)",
+        "description": "Recomputes and persists passage embeddings. When provider='ollama', high-dimensional vectors are stored in PassageChunk.embedding_json. Note that hybrid search currently relies on 256-dimensional deterministic embeddings for zero-latency ranking and falls back when query and stored dimensions differ; Ollama reindexing does not affect search ranking until query-time Ollama embedding matches the stored dimension.",
+        "operationId": "reindex_library_embeddings_api_v1_library_reindex_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReindexLibraryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReindexLibraryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/history": {
+      "get": {
+        "tags": [
+          "Sprint 3: Hybrid RAG Search, Exact Passage Verification, Library & Cloud Sync"
+        ],
+        "summary": "List Recent Reading History Across Articles, Websites, YouTube Videos, and Books",
+        "operationId": "get_reading_history_api_v1_history_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 200,
+              "minimum": 1,
+              "default": 50,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadingHistoryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Sprint 3: Hybrid RAG Search, Exact Passage Verification, Library & Cloud Sync"
+        ],
+        "summary": "Clear Reading History Log",
+        "operationId": "clear_reading_history_api_v1_history_delete",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Clear Reading History Api V1 History Delete"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sync/export": {
+      "get": {
+        "tags": [
+          "Sprint 3: Hybrid RAG Search, Exact Passage Verification, Library & Cloud Sync"
+        ],
+        "summary": "Export Cross-Device Cloud Sync Snapshot (Reader Settings, Saved Library & History)",
+        "operationId": "export_cloud_sync_snapshot_api_v1_sync_export_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "description": "Anonymous or synced session ID",
+              "default": "demo-session",
+              "title": "Session Id"
+            },
+            "description": "Anonymous or synced session ID"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudSyncSnapshotResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/sync/import": {
+      "post": {
+        "tags": [
+          "Sprint 3: Hybrid RAG Search, Exact Passage Verification, Library & Cloud Sync"
+        ],
+        "summary": "Import & Reconcile Cross-Device Cloud Sync Snapshot",
+        "operationId": "import_cloud_sync_snapshot_api_v1_sync_import_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloudSyncImportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CloudSyncSnapshotResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/summarize": {
+      "post": {
+        "tags": [
+          "Sprint 4: LangGraph Multi-Agent System & Multi-LLM Router"
+        ],
+        "summary": "Generate a Structured AI Summary (TL;DR, Bullets, Key Takeaways, Executive, or Custom Prompt)",
+        "operationId": "generate_document_summary_api_v1_summarize_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SummarizeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/summaries": {
+      "get": {
+        "tags": [
+          "Sprint 4: LangGraph Multi-Agent System & Multi-LLM Router"
+        ],
+        "summary": "List All Generated AI Summaries for a Document",
+        "operationId": "list_document_summaries_api_v1_documents__document_id__summaries_get",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/SummaryResponse"
+                  },
+                  "title": "Response List Document Summaries Api V1 Documents  Document Id  Summaries Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/documents/{document_id}/ask": {
+      "post": {
+        "tags": [
+          "Sprint 4: LangGraph Multi-Agent System & Multi-LLM Router"
+        ],
+        "summary": "Exact-Passage Q&A Verified by the Critic Agent (Grounded in Verbatim Citations)",
+        "operationId": "ask_document_with_critic_api_v1_documents__document_id__ask_post",
+        "parameters": [
+          {
+            "name": "document_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Document Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskDocumentRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskDocumentResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ask-context": {
+      "post": {
+        "tags": [
+          "Sprint 4: LangGraph Multi-Agent System & Multi-LLM Router"
+        ],
+        "summary": "Contextual Excerpt Analyst: Explain, Critique, Define, or Analyze a Highlighted Reader Passage",
+        "operationId": "ask_contextual_excerpt_api_v1_ask_context_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskContextRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AskContextResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat": {
+      "post": {
+        "tags": [
+          "Sprint 4: LangGraph Multi-Agent System & Multi-LLM Router"
+        ],
+        "summary": "Interactive AI Chat with Live SSE Word-by-Word Streaming (text/event-stream) or JSON Response",
+        "operationId": "chat_interaction_api_v1_chat_post",
+        "parameters": [
+          {
+            "name": "stream",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Set true or provide Accept: text/event-stream for SSE streaming",
+              "default": false,
+              "title": "Stream"
+            },
+            "description": "Set true or provide Accept: text/event-stream for SSE streaming"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatMessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "title": "Response Chat Interaction Api V1 Chat Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/chat/{thread_id}": {
+      "get": {
+        "tags": [
+          "Sprint 4: LangGraph Multi-Agent System & Multi-LLM Router"
+        ],
+        "summary": "Get Chat Thread Details and Full Message History",
+        "operationId": "get_chat_thread_api_v1_chat__thread_id__get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatThreadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Sprint 4: LangGraph Multi-Agent System & Multi-LLM Router"
+        ],
+        "summary": "Delete a Chat Thread and All Associated Messages",
+        "operationId": "delete_chat_thread_api_v1_chat__thread_id__delete",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Delete Chat Thread Api V1 Chat  Thread Id  Delete"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/": {
+      "get": {
+        "tags": [
+          "Root"
+        ],
+        "summary": "Summary AI API Root & Sprint Status",
+        "operationId": "root_index__get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Root Index  Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AnonymousSessionResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "is_anonymous": {
+            "type": "boolean",
+            "title": "Is Anonymous",
+            "default": true
+          },
+          "no_account_required": {
+            "type": "boolean",
+            "title": "No Account Required",
+            "default": true
+          },
+          "sync_token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sync Token"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/ReaderSettingsSchema"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "settings",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "AnonymousSessionResponse"
+      },
+      "AskContextRequest": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id",
+            "description": "Document ID containing the highlighted text"
+          },
+          "selected_text": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Selected Text",
+            "description": "Highlighted text passage from the reader interface"
+          },
+          "start_char": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Char",
+            "description": "Exact start character index"
+          },
+          "end_char": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Char",
+            "description": "Exact end character index"
+          },
+          "action_or_question": {
+            "type": "string",
+            "title": "Action Or Question",
+            "description": "'explain' | 'critique' | 'define' | or any custom question regarding this excerpt",
+            "default": "explain"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "claude",
+                  "gpt",
+                  "gemini",
+                  "openrouter",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "selected_text"
+        ],
+        "title": "AskContextRequest",
+        "example": {
+          "action_or_question": "explain",
+          "document_id": "demo_doc_id",
+          "end_char": 213,
+          "model": "openrouter/free",
+          "provider": "openrouter",
+          "selected_text": "Indexing every paragraph by exact start_char and end_char offsets eliminates hallucinated references.",
+          "start_char": 100
+        }
+      },
+      "AskContextResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "selected_text": {
+            "type": "string",
+            "title": "Selected Text"
+          },
+          "action_or_question": {
+            "type": "string",
+            "title": "Action Or Question"
+          },
+          "analysis": {
+            "type": "string",
+            "title": "Analysis"
+          },
+          "offset_verified": {
+            "type": "boolean",
+            "title": "Offset Verified"
+          },
+          "provider_used": {
+            "type": "string",
+            "title": "Provider Used"
+          },
+          "model_used": {
+            "type": "string",
+            "title": "Model Used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "selected_text",
+          "action_or_question",
+          "analysis",
+          "offset_verified",
+          "provider_used",
+          "model_used"
+        ],
+        "title": "AskContextResponse"
+      },
+      "AskDocumentRequest": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id",
+            "description": "Document ID to query"
+          },
+          "question": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Question",
+            "description": "Research inquiry to answer with verbatim passage citations"
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 20.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "default": 5
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "claude",
+                  "gpt",
+                  "gemini",
+                  "openrouter",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "question"
+        ],
+        "title": "AskDocumentRequest",
+        "example": {
+          "document_id": "demo_doc_id",
+          "model": "openrouter/free",
+          "provider": "openrouter",
+          "question": "What is the core argument regarding verifiable passage citations?",
+          "top_k": 5
+        }
+      },
+      "AskDocumentResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "answer": {
+            "type": "string",
+            "title": "Answer"
+          },
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievedPassageSchema"
+            },
+            "type": "array",
+            "title": "Citations"
+          },
+          "all_citations_verified": {
+            "type": "boolean",
+            "title": "All Citations Verified"
+          },
+          "provider_used": {
+            "type": "string",
+            "title": "Provider Used"
+          },
+          "model_used": {
+            "type": "string",
+            "title": "Model Used"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "question",
+          "answer",
+          "all_citations_verified",
+          "provider_used",
+          "model_used"
+        ],
+        "title": "AskDocumentResponse"
+      },
+      "ChatMessageRequest": {
+        "properties": {
+          "thread_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id",
+            "description": "Existing thread ID or None to create a new thread"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id",
+            "description": "Optional document ID context"
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Message",
+            "description": "User message content"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "claude",
+                  "gpt",
+                  "gemini",
+                  "openrouter",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ChatMessageRequest",
+        "example": {
+          "document_id": "demo_doc_id",
+          "message": "Summarize the primary conclusions and cite the exact passages.",
+          "model": "openrouter/free",
+          "provider": "openrouter"
+        }
+      },
+      "ChatMessageSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "role": {
+            "type": "string",
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "citations": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Citations"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "thread_id",
+          "role",
+          "content",
+          "created_at"
+        ],
+        "title": "ChatMessageSchema"
+      },
+      "ChatThreadResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "model_id": {
+            "type": "string",
+            "title": "Model Id"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ChatMessageSchema"
+            },
+            "type": "array",
+            "title": "Messages"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "provider",
+          "model_id",
+          "created_at"
+        ],
+        "title": "ChatThreadResponse"
+      },
+      "CloudSyncImportRequest": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id",
+            "default": "demo-sync-session"
+          },
+          "settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReaderSettingsSchema"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "saved_document_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Saved Document Ids"
+          }
+        },
+        "type": "object",
+        "title": "CloudSyncImportRequest",
+        "example": {
+          "saved_document_ids": [],
+          "session_id": "demo-sync-session",
+          "settings": {
+            "font_id": "merriweather",
+            "font_size_px": 20,
+            "line_height": 1.8,
+            "margin_width": "medium",
+            "preferred_model": "openrouter/free",
+            "preferred_provider": "openrouter",
+            "preferred_tts_speed": 1.0,
+            "preferred_voice_id": "aria-us-f",
+            "theme": "sepia"
+          }
+        }
+      },
+      "CloudSyncSnapshotResponse": {
+        "properties": {
+          "sync_version": {
+            "type": "string",
+            "title": "Sync Version",
+            "default": "1.0"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/ReaderSettingsSchema"
+          },
+          "library_count": {
+            "type": "integer",
+            "title": "Library Count"
+          },
+          "history_count": {
+            "type": "integer",
+            "title": "History Count"
+          },
+          "library_items": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryItemSummarySchema"
+            },
+            "type": "array",
+            "title": "Library Items"
+          },
+          "reading_history": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingHistoryItemSchema"
+            },
+            "type": "array",
+            "title": "Reading History"
+          },
+          "exported_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Exported At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "settings",
+          "library_count",
+          "history_count",
+          "library_items",
+          "reading_history",
+          "exported_at"
+        ],
+        "title": "CloudSyncSnapshotResponse"
+      },
+      "CopyToLlmResponse": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "source_used": {
+            "type": "string",
+            "title": "Source Used"
+          },
+          "word_count": {
+            "type": "integer",
+            "title": "Word Count"
+          },
+          "llm_markdown": {
+            "type": "string",
+            "title": "Llm Markdown"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id",
+          "title",
+          "url",
+          "source_used",
+          "word_count",
+          "llm_markdown"
+        ],
+        "title": "CopyToLlmResponse"
+      },
+      "ExtractBookRequest": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title",
+            "description": "Book or document title",
+            "default": "Uploaded Book"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "source_url": {
+            "type": "string",
+            "title": "Source Url",
+            "default": "book://library-upload"
+          },
+          "format": {
+            "type": "string",
+            "enum": [
+              "pdf",
+              "epub",
+              "markdown",
+              "text"
+            ],
+            "title": "Format",
+            "default": "markdown"
+          },
+          "file_base64": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Base64",
+            "description": "Base64-encoded PDF or EPUB binary when format is 'pdf' or 'epub'"
+          },
+          "text_content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text Content",
+            "description": "Raw Markdown or plain-text book content when format is 'markdown' or 'text'"
+          },
+          "save_to_library": {
+            "type": "boolean",
+            "title": "Save To Library",
+            "default": true
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "title": "ExtractBookRequest",
+        "example": {
+          "author": "Dr. Ada Lovelace",
+          "format": "markdown",
+          "save_to_library": true,
+          "tags": [
+            "book",
+            "agentic-ai"
+          ],
+          "text_content": "# Chapter 1: Distraction-Free Reading\n\nModern research requires stripping popups, ads, and soft paywalls so readers can focus on primary sources.\n\n# Chapter 2: Verifiable Passage Citations\n\nIndexing every paragraph by exact start_char and end_char offsets eliminates hallucinated references.",
+          "title": "Designing Agentic Research Systems"
+        }
+      },
+      "ExtractUrlRequest": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "Target article, website, or YouTube URL",
+            "default": "https://example.com"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "direct",
+              "wayback",
+              "googlecache",
+              "jina"
+            ],
+            "title": "Source",
+            "description": "Mirror selection mode: 'auto' races all mirrors in parallel",
+            "default": "auto"
+          },
+          "raw_html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Raw Html",
+            "description": "Optional raw HTML override (e.g., from Browser Extension active tab DOM)"
+          },
+          "title_override": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title Override"
+          },
+          "save_to_library": {
+            "type": "boolean",
+            "title": "Save To Library",
+            "default": true
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "title": "ExtractUrlRequest",
+        "example": {
+          "save_to_library": true,
+          "source": "auto",
+          "tags": [
+            "web",
+            "reader"
+          ],
+          "url": "https://example.com"
+        }
+      },
+      "ExtractYouTubeRequest": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url",
+            "description": "YouTube watch, short, or youtu.be link",
+            "default": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+          },
+          "languages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Languages"
+          },
+          "save_to_library": {
+            "type": "boolean",
+            "title": "Save To Library",
+            "default": true
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "title": "ExtractYouTubeRequest",
+        "example": {
+          "languages": [
+            "en"
+          ],
+          "save_to_library": true,
+          "tags": [
+            "youtube",
+            "video"
+          ],
+          "url": "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
+        }
+      },
+      "ExtractedDocumentResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "canonical_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Canonical Url"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "site_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Name"
+          },
+          "published_time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Time"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type"
+          },
+          "excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excerpt"
+          },
+          "content_html": {
+            "type": "string",
+            "title": "Content Html"
+          },
+          "text_content": {
+            "type": "string",
+            "title": "Text Content"
+          },
+          "llm_markdown": {
+            "type": "string",
+            "title": "Llm Markdown"
+          },
+          "word_count": {
+            "type": "integer",
+            "title": "Word Count"
+          },
+          "reading_time_minutes": {
+            "type": "integer",
+            "title": "Reading Time Minutes"
+          },
+          "stripped_elements_count": {
+            "type": "integer",
+            "title": "Stripped Elements Count"
+          },
+          "source_used": {
+            "type": "string",
+            "title": "Source Used"
+          },
+          "source_score": {
+            "type": "number",
+            "title": "Source Score"
+          },
+          "source_attempts": {
+            "items": {
+              "$ref": "#/components/schemas/SourceAttemptSchema"
+            },
+            "type": "array",
+            "title": "Source Attempts"
+          },
+          "saved_in_library": {
+            "type": "boolean",
+            "title": "Saved In Library"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "passages": {
+            "items": {
+              "$ref": "#/components/schemas/PassageChunkSchema"
+            },
+            "type": "array",
+            "title": "Passages"
+          },
+          "transcript_segments": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TranscriptSegmentSchema"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Transcript Segments"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "title",
+          "media_type",
+          "content_html",
+          "text_content",
+          "llm_markdown",
+          "word_count",
+          "reading_time_minutes",
+          "stripped_elements_count",
+          "source_used",
+          "source_score",
+          "saved_in_library",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ExtractedDocumentResponse"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HybridSearchRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Query",
+            "description": "Search query evaluated via Hybrid BM25 + Dense Vector Cosine Similarity + RRF",
+            "default": "exact start_char and end_char offsets"
+          },
+          "top_k": {
+            "type": "integer",
+            "maximum": 25.0,
+            "minimum": 1.0,
+            "title": "Top K",
+            "default": 5
+          },
+          "document_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Ids",
+            "description": "Optional filter restricting search to specific document IDs"
+          },
+          "tag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tag",
+            "description": "Optional tag filter (e.g., 'book', 'youtube', 'web')"
+          },
+          "media_type": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Media Type",
+            "description": "Optional media_type filter ('article', 'book', 'youtube')"
+          },
+          "saved_only": {
+            "type": "boolean",
+            "title": "Saved Only",
+            "description": "If true, only search documents marked saved_in_library=True",
+            "default": false
+          }
+        },
+        "type": "object",
+        "title": "HybridSearchRequest",
+        "example": {
+          "query": "exact start_char and end_char offsets",
+          "saved_only": false,
+          "top_k": 5
+        }
+      },
+      "HybridSearchResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "total_candidates_scanned": {
+            "type": "integer",
+            "title": "Total Candidates Scanned"
+          },
+          "returned_count": {
+            "type": "integer",
+            "title": "Returned Count"
+          },
+          "all_offsets_verified": {
+            "type": "boolean",
+            "title": "All Offsets Verified"
+          },
+          "passages": {
+            "items": {
+              "$ref": "#/components/schemas/RetrievedPassageSchema"
+            },
+            "type": "array",
+            "title": "Passages"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "total_candidates_scanned",
+          "returned_count",
+          "all_offsets_verified",
+          "passages"
+        ],
+        "title": "HybridSearchResponse"
+      },
+      "LibraryItemSummarySchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "author": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Author"
+          },
+          "site_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Site Name"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type"
+          },
+          "excerpt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excerpt"
+          },
+          "word_count": {
+            "type": "integer",
+            "title": "Word Count"
+          },
+          "reading_time_minutes": {
+            "type": "integer",
+            "title": "Reading Time Minutes"
+          },
+          "source_used": {
+            "type": "string",
+            "title": "Source Used"
+          },
+          "saved_in_library": {
+            "type": "boolean",
+            "title": "Saved In Library"
+          },
+          "tags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tags"
+          },
+          "passage_count": {
+            "type": "integer",
+            "title": "Passage Count",
+            "default": 0
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "url",
+          "title",
+          "media_type",
+          "word_count",
+          "reading_time_minutes",
+          "source_used",
+          "saved_in_library",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "LibraryItemSummarySchema"
+      },
+      "LibraryListResponse": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LibraryItemSummarySchema"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "items"
+        ],
+        "title": "LibraryListResponse"
+      },
+      "LibraryUpdateRequest": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "saved_in_library": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Saved In Library"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "title": "LibraryUpdateRequest",
+        "example": {
+          "saved_in_library": true,
+          "tags": [
+            "research",
+            "rag",
+            "favorite"
+          ],
+          "title": "Updated Research Article Title"
+        }
+      },
+      "PassageChunkSchema": {
+        "properties": {
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "paragraph_index": {
+            "type": "integer",
+            "title": "Paragraph Index"
+          },
+          "chapter_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter Title"
+          },
+          "page_or_timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Or Timestamp"
+          },
+          "start_char": {
+            "type": "integer",
+            "title": "Start Char"
+          },
+          "end_char": {
+            "type": "integer",
+            "title": "End Char"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "paragraph_index",
+          "start_char",
+          "end_char",
+          "text"
+        ],
+        "title": "PassageChunkSchema"
+      },
+      "PlatformMetaResponse": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": "Summary AI"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version",
+            "default": "1.0.0"
+          },
+          "no_account_required": {
+            "type": "boolean",
+            "title": "No Account Required",
+            "default": true
+          },
+          "reader_fonts": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Reader Fonts"
+          },
+          "highlight_colors": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Highlight Colors"
+          },
+          "extraction_sources": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Extraction Sources"
+          },
+          "summary_modes": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Summary Modes"
+          },
+          "ai_providers": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Ai Providers"
+          },
+          "ai_models": {
+            "items": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Ai Models"
+          },
+          "tts_voices": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Tts Voices"
+          },
+          "default_reader_settings": {
+            "$ref": "#/components/schemas/ReaderSettingsSchema"
+          }
+        },
+        "type": "object",
+        "required": [
+          "reader_fonts",
+          "highlight_colors",
+          "extraction_sources",
+          "summary_modes",
+          "ai_providers",
+          "ai_models",
+          "tts_voices",
+          "default_reader_settings"
+        ],
+        "title": "PlatformMetaResponse"
+      },
+      "ReaderSettingsSchema": {
+        "properties": {
+          "theme": {
+            "type": "string",
+            "enum": [
+              "dark",
+              "light",
+              "sepia"
+            ],
+            "title": "Theme",
+            "default": "dark"
+          },
+          "font_id": {
+            "type": "string",
+            "title": "Font Id",
+            "description": "One of the 7 reader fonts including opendyslexic",
+            "default": "inter"
+          },
+          "font_size_px": {
+            "type": "integer",
+            "maximum": 32.0,
+            "minimum": 14.0,
+            "title": "Font Size Px",
+            "default": 18
+          },
+          "line_height": {
+            "type": "number",
+            "maximum": 2.4,
+            "minimum": 1.2,
+            "title": "Line Height",
+            "default": 1.75
+          },
+          "margin_width": {
+            "type": "string",
+            "enum": [
+              "narrow",
+              "medium",
+              "wide"
+            ],
+            "title": "Margin Width",
+            "default": "medium"
+          },
+          "preferred_provider": {
+            "type": "string",
+            "enum": [
+              "claude",
+              "gpt",
+              "gemini",
+              "openrouter",
+              "ollama"
+            ],
+            "title": "Preferred Provider",
+            "default": "claude"
+          },
+          "preferred_model": {
+            "type": "string",
+            "title": "Preferred Model",
+            "default": "claude-3-7-sonnet"
+          },
+          "preferred_voice_id": {
+            "type": "string",
+            "title": "Preferred Voice Id",
+            "default": "aria-us-f"
+          },
+          "preferred_tts_speed": {
+            "type": "number",
+            "maximum": 2.0,
+            "minimum": 0.5,
+            "title": "Preferred Tts Speed",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "title": "ReaderSettingsSchema"
+      },
+      "ReaderSettingsUpdateRequest": {
+        "properties": {
+          "theme": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "dark",
+                  "light",
+                  "sepia"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theme"
+          },
+          "font_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Font Id"
+          },
+          "font_size_px": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 32.0,
+                "minimum": 14.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Font Size Px"
+          },
+          "line_height": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 2.4,
+                "minimum": 1.2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line Height"
+          },
+          "margin_width": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "narrow",
+                  "medium",
+                  "wide"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Margin Width"
+          },
+          "preferred_provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "claude",
+                  "gpt",
+                  "gemini",
+                  "openrouter",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Provider"
+          },
+          "preferred_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Model"
+          },
+          "preferred_voice_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Voice Id"
+          },
+          "preferred_tts_speed": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 2.0,
+                "minimum": 0.5
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preferred Tts Speed"
+          }
+        },
+        "type": "object",
+        "title": "ReaderSettingsUpdateRequest",
+        "example": {
+          "font_id": "opendyslexic",
+          "font_size_px": 20,
+          "line_height": 1.8,
+          "margin_width": "medium",
+          "preferred_model": "openrouter/free",
+          "preferred_provider": "openrouter",
+          "preferred_tts_speed": 1.0,
+          "preferred_voice_id": "aria-us-f",
+          "theme": "dark"
+        }
+      },
+      "ReadingHistoryItemSchema": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "source_used": {
+            "type": "string",
+            "title": "Source Used"
+          },
+          "word_count": {
+            "type": "integer",
+            "title": "Word Count"
+          },
+          "last_read_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Last Read At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "document_id",
+          "title",
+          "url",
+          "source_used",
+          "word_count",
+          "last_read_at"
+        ],
+        "title": "ReadingHistoryItemSchema"
+      },
+      "ReadingHistoryResponse": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReadingHistoryItemSchema"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "items"
+        ],
+        "title": "ReadingHistoryResponse"
+      },
+      "ReindexLibraryRequest": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "deterministic",
+              "ollama"
+            ],
+            "title": "Provider",
+            "description": "Embedding provider: 'deterministic' (256-dim local hashing) or 'ollama' (live local Ollama /api/embed). Note: Ollama vectors are persisted in PassageChunk.embedding_json. Hybrid search currently uses 256-dim deterministic embeddings for synchronous low-latency query ranking, falling back if stored dimensions differ.",
+            "default": "deterministic"
+          },
+          "ollama_model": {
+            "type": "string",
+            "title": "Ollama Model",
+            "description": "Local Ollama embedding model name when provider='ollama'",
+            "default": "nomic-embed-text-v2-moe:latest"
+          },
+          "document_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Ids"
+          }
+        },
+        "type": "object",
+        "title": "ReindexLibraryRequest",
+        "example": {
+          "ollama_model": "nomic-embed-text-v2-moe:latest",
+          "provider": "deterministic"
+        }
+      },
+      "ReindexLibraryResponse": {
+        "properties": {
+          "provider_used": {
+            "type": "string",
+            "title": "Provider Used"
+          },
+          "documents_indexed": {
+            "type": "integer",
+            "title": "Documents Indexed"
+          },
+          "passages_indexed": {
+            "type": "integer",
+            "title": "Passages Indexed"
+          },
+          "embedding_dimension": {
+            "type": "integer",
+            "title": "Embedding Dimension"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider_used",
+          "documents_indexed",
+          "passages_indexed",
+          "embedding_dimension"
+        ],
+        "title": "ReindexLibraryResponse"
+      },
+      "RetrievedPassageSchema": {
+        "properties": {
+          "rank": {
+            "type": "integer",
+            "title": "Rank"
+          },
+          "passage_id": {
+            "type": "string",
+            "title": "Passage Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "document_title": {
+            "type": "string",
+            "title": "Document Title"
+          },
+          "document_url": {
+            "type": "string",
+            "title": "Document Url"
+          },
+          "media_type": {
+            "type": "string",
+            "title": "Media Type"
+          },
+          "paragraph_index": {
+            "type": "integer",
+            "title": "Paragraph Index"
+          },
+          "chapter_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Chapter Title"
+          },
+          "page_or_timestamp": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page Or Timestamp"
+          },
+          "start_char": {
+            "type": "integer",
+            "title": "Start Char"
+          },
+          "end_char": {
+            "type": "integer",
+            "title": "End Char"
+          },
+          "exact_quote": {
+            "type": "string",
+            "title": "Exact Quote"
+          },
+          "offset_verified": {
+            "type": "boolean",
+            "title": "Offset Verified"
+          },
+          "bm25_score": {
+            "type": "number",
+            "title": "Bm25 Score"
+          },
+          "vector_score": {
+            "type": "number",
+            "title": "Vector Score"
+          },
+          "hybrid_score": {
+            "type": "number",
+            "title": "Hybrid Score"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rank",
+          "passage_id",
+          "document_id",
+          "document_title",
+          "document_url",
+          "media_type",
+          "paragraph_index",
+          "start_char",
+          "end_char",
+          "exact_quote",
+          "offset_verified",
+          "bm25_score",
+          "vector_score",
+          "hybrid_score"
+        ],
+        "title": "RetrievedPassageSchema"
+      },
+      "SourceAttemptSchema": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "word_count": {
+            "type": "integer",
+            "title": "Word Count"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "latency_ms": {
+            "type": "integer",
+            "title": "Latency Ms"
+          },
+          "selected": {
+            "type": "boolean",
+            "title": "Selected"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "status",
+          "word_count",
+          "score",
+          "latency_ms",
+          "selected"
+        ],
+        "title": "SourceAttemptSchema"
+      },
+      "SummarizeRequest": {
+        "properties": {
+          "document_id": {
+            "type": "string",
+            "title": "Document Id",
+            "description": "Target Document ID to summarize"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "tldr",
+              "bullets",
+              "takeaways",
+              "executive",
+              "custom"
+            ],
+            "title": "Mode",
+            "description": "Summarization mode: 'tldr' (executive synthesis), 'bullets' (key claims), 'takeaways' (actionable implications), 'executive' (deep research brief), 'custom' (user prompt)",
+            "default": "bullets"
+          },
+          "custom_prompt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Custom Prompt",
+            "description": "Custom prompt instructions when mode='custom'"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "claude",
+                  "gpt",
+                  "gemini",
+                  "openrouter",
+                  "ollama"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider",
+            "description": "LLM provider: 'claude', 'gpt', 'gemini', 'openrouter', or 'ollama'"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model",
+            "description": "Model ID (e.g., 'openrouter/free', 'claude-3-7-sonnet', 'gpt-4o', 'qwen2.5:7b')"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document_id"
+        ],
+        "title": "SummarizeRequest",
+        "example": {
+          "document_id": "demo_doc_id",
+          "mode": "bullets",
+          "model": "openrouter/free",
+          "provider": "openrouter"
+        }
+      },
+      "SummaryResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "mode": {
+            "type": "string",
+            "title": "Mode"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "key_points": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Key Points"
+          },
+          "word_count": {
+            "type": "integer",
+            "title": "Word Count"
+          },
+          "reading_time_saved_minutes": {
+            "type": "integer",
+            "title": "Reading Time Saved Minutes"
+          },
+          "provider_used": {
+            "type": "string",
+            "title": "Provider Used"
+          },
+          "model_used": {
+            "type": "string",
+            "title": "Model Used"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "document_id",
+          "mode",
+          "content",
+          "word_count",
+          "reading_time_saved_minutes",
+          "provider_used",
+          "model_used",
+          "created_at"
+        ],
+        "title": "SummaryResponse"
+      },
+      "TranscriptSegmentSchema": {
+        "properties": {
+          "index": {
+            "type": "integer",
+            "title": "Index"
+          },
+          "start_sec": {
+            "type": "number",
+            "title": "Start Sec"
+          },
+          "duration_sec": {
+            "type": "number",
+            "title": "Duration Sec"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "index",
+          "start_sec",
+          "duration_sec",
+          "timestamp",
+          "text"
+        ],
+        "title": "TranscriptSegmentSchema"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

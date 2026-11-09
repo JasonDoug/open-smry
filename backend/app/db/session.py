@@ -2,8 +2,8 @@
 SQLAlchemy Engine & Session Management.
 """
 import os
-from typing import Generator
-from sqlalchemy import create_engine, Engine
+from typing import Dict, Generator
+from sqlalchemy import create_engine, Engine, inspect, text
 from sqlalchemy.orm import sessionmaker, Session
 
 from app.config import get_settings
@@ -31,9 +31,49 @@ def get_engine(database_url: str | None = None) -> Engine:
     return _engine
 
 
+def _migrate_schema(engine: Engine) -> None:
+    """Add columns that were introduced after existing databases were created.
+
+    Each ALTER TABLE is concurrency-safe: if it fails (e.g., another startup
+    process added the column first), the table is re-inspected and the error is
+    suppressed only when the column now exists.
+    """
+    inspector = inspect(engine)
+    plans: Dict[str, Dict[str, str]] = {
+        "reader_sessions": {
+            "anthropic_api_key": "VARCHAR(512)",
+            "openai_api_key": "VARCHAR(512)",
+            "gemini_api_key": "VARCHAR(512)",
+            "openrouter_api_key": "VARCHAR(512)",
+        },
+        "documents": {
+            "image_url": "VARCHAR(2048)",
+        },
+    }
+    for table_name, additions in plans.items():
+        if table_name not in inspector.get_table_names():
+            continue
+        existing_cols = {col["name"] for col in inspector.get_columns(table_name)}
+        for col_name, col_type in additions.items():
+            if col_name in existing_cols:
+                continue
+            try:
+                with engine.begin() as conn:
+                    conn.execute(
+                        text(f"ALTER TABLE {table_name} ADD COLUMN {col_name} {col_type}")
+                    )
+            except Exception:
+                # Another startup may have added the column concurrently; only
+                # suppress when a fresh inspection confirms it now exists.
+                fresh = {c["name"] for c in inspect(engine).get_columns(table_name)}
+                if col_name not in fresh:
+                    raise
+
+
 def init_db(engine: Engine | None = None) -> Engine:
     target_engine = engine or get_engine()
     Base.metadata.create_all(bind=target_engine)
+    _migrate_schema(target_engine)
     return target_engine
 
 
