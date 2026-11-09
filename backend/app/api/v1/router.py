@@ -36,6 +36,7 @@ VALID_VOICE_IDS = {v["id"] for v in TTS_VOICES}
 
 
 def _session_to_response(sess: ReaderSession) -> AnonymousSessionResponse:
+    """Serializes a ReaderSession row, exposing only API-key presence flags (never key values)."""
     return AnonymousSessionResponse(
         session_id=sess.id,
         is_anonymous=sess.is_anonymous,
@@ -51,6 +52,10 @@ def _session_to_response(sess: ReaderSession) -> AnonymousSessionResponse:
             preferred_model=sess.preferred_model,
             preferred_voice_id=sess.preferred_voice_id,
             preferred_tts_speed=sess.preferred_tts_speed,
+            has_anthropic_key=bool(sess.anthropic_api_key),
+            has_openai_key=bool(sess.openai_api_key),
+            has_gemini_key=bool(sess.gemini_api_key),
+            has_openrouter_key=bool(sess.openrouter_api_key),
         ),
         created_at=sess.created_at,
         updated_at=sess.updated_at,

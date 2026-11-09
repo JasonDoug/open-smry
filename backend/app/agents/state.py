@@ -15,6 +15,7 @@ class AgentState(TypedDict, total=False):
     provider_used: str
     model_used: str
     iteration: int
+    api_keys: Optional[Dict[str, str]]
 
     # Document Context
     document_id: Optional[str]

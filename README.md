@@ -89,11 +89,15 @@ npm test
 
 ### 2. Launch the Web Reader & REST OpenAPI Server
 ```bash
-npm start
+./start.sh        # starts both the FastAPI backend (:8001) and the Web Reader (:3333)
+./stop.sh         # stop both
+./restart.sh      # restart both
 ```
 * **Web Reader UI**: [http://localhost:3333](http://localhost:3333)
 * **Interactive OpenAPI Docs**: [http://localhost:3333/docs](http://localhost:3333/docs)
 * **Raw OpenAPI 3.1 Spec**: [http://localhost:3333/openapi.json](http://localhost:3333/openapi.json)
+
+> Prefer running services manually? Use `npm run dev:api` (FastAPI on :8001) and `npm run dev:web` (Web Reader on :3333) in separate terminals.
 
 ### 3. Connect an External AI Agent via MCP
 Add open-smry to your Claude Desktop, Cursor, or Antigravity MCP configuration:
