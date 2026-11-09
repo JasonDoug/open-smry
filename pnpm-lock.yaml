@@ -8,4 +8,6 @@ importers:
 
   .: {}
 
+  apps/web: {}
+
   packages/shared: {}

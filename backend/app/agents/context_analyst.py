@@ -24,6 +24,7 @@ async def run_context_analyst_agent(state: AgentState) -> AgentState:
     doc_title = state.get("document_title") or "Document"
     provider = state.get("provider")
     model = state.get("model")
+    api_keys = state.get("api_keys")
 
     # Verify offset invariant if start/end chars are provided
     offset_verified = True
@@ -65,7 +66,7 @@ async def run_context_analyst_agent(state: AgentState) -> AgentState:
     ]
 
     analysis, provider_used, model_used = await chat_completion(
-        messages, provider=provider, model=model
+        messages, provider=provider, model=model, api_keys=api_keys
     )
 
     state["context_analysis"] = analysis
