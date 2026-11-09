@@ -61,7 +61,6 @@ async def run_summarizer_agent(state: AgentState) -> AgentState:
     custom_prompt = state.get("custom_prompt")
     provider = state.get("provider")
     model = state.get("model")
-    api_keys = state.get("api_keys")
     doc_title = state.get("document_title") or "Document"
     passages = state.get("passages") or []
     full_text = state.get("document_text") or "\n\n".join(p.get("text", "") for p in passages)
@@ -91,7 +90,7 @@ async def run_summarizer_agent(state: AgentState) -> AgentState:
                 {"role": "user", "content": chunk_text},
             ]
             sub_summary, p_used, m_used = await chat_completion(
-                map_messages, provider=provider, model=model, api_keys=api_keys
+                map_messages, provider=provider, model=model
             )
             provider_used, model_used = p_used, m_used
             intermediate_summaries.append(f"### Section {idx} Summary:\n{sub_summary}")
@@ -105,7 +104,7 @@ async def run_summarizer_agent(state: AgentState) -> AgentState:
             },
         ]
         final_text, p_used, m_used = await chat_completion(
-            reduce_messages, provider=provider, model=model, api_keys=api_keys
+            reduce_messages, provider=provider, model=model
         )
         provider_used, model_used = p_used, m_used
     else:
@@ -115,7 +114,7 @@ async def run_summarizer_agent(state: AgentState) -> AgentState:
             {"role": "user", "content": f"Document Text:\n\n{full_text}"},
         ]
         final_text, provider_used, model_used = await chat_completion(
-            messages, provider=provider, model=model, api_keys=api_keys
+            messages, provider=provider, model=model
         )
 
     # Calculate reading time saved (assuming average reading speed of 220 wpm)

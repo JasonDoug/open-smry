@@ -109,7 +109,6 @@ async def chat_completion(
     model: Optional[str] = None,
     temperature: float = 0.2,
     max_tokens: int = 2048,
-    api_keys: Optional[Dict[str, str]] = None,
 ) -> Tuple[str, str, str]:
     """
     Executes a chat completion across the selected provider.
@@ -117,107 +116,98 @@ async def chat_completion(
     """
     settings = get_settings()
     p, m = resolve_provider_and_model(provider, model)
-    api_keys = api_keys or {}
 
     # 1. Anthropic Claude (temperature omitted for Claude 3.7+ compatibility)
-    if p == "claude":
-        api_key = api_keys.get("anthropic") or settings.anthropic_api_key
-        if api_key:
-            try:
-                client = anthropic.AsyncAnthropic(api_key=api_key)
-                system_msg = next((msg["content"] for msg in messages if msg["role"] == "system"), None)
-                filtered_messages = [msg for msg in messages if msg["role"] in ("user", "assistant")]
+    if p == "claude" and settings.anthropic_api_key:
+        try:
+            client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+            system_msg = next((msg["content"] for msg in messages if msg["role"] == "system"), None)
+            filtered_messages = [msg for msg in messages if msg["role"] in ("user", "assistant")]
 
-                kwargs: Dict[str, object] = {
-                    "model": m,
-                    "messages": filtered_messages,
-                    "max_tokens": max_tokens,
-                }
-                if system_msg:
-                    kwargs["system"] = system_msg
+            kwargs: Dict[str, object] = {
+                "model": m,
+                "messages": filtered_messages,
+                "max_tokens": max_tokens,
+            }
+            if system_msg:
+                kwargs["system"] = system_msg
 
-                response = await client.messages.create(**kwargs)  # type: ignore[arg-type]
-                text = "".join([block.text for block in response.content if hasattr(block, "text")])
-                return text, p, m
-            except Exception as exc:
-                logger.exception("Claude chat completion failed: %s", exc)
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Anthropic Claude provider error: {exc}",
-                ) from exc
+            response = await client.messages.create(**kwargs)  # type: ignore[arg-type]
+            text = "".join([block.text for block in response.content if hasattr(block, "text")])
+            return text, p, m
+        except Exception as exc:
+            logger.exception("Claude chat completion failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Anthropic Claude provider error: {exc}",
+            ) from exc
 
     # 2. OpenAI GPT
-    if p == "gpt":
-        api_key = api_keys.get("openai") or settings.openai_api_key
-        if api_key:
-            try:
-                client = openai.AsyncOpenAI(api_key=api_key)
-                response = await client.chat.completions.create(
-                    model=m,
-                    messages=messages,  # type: ignore[arg-type]
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
-                text = response.choices[0].message.content or ""
-                return text, p, m
-            except Exception as exc:
-                logger.exception("OpenAI GPT chat completion failed: %s", exc)
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"OpenAI GPT provider error: {exc}",
-                ) from exc
+    if p == "gpt" and settings.openai_api_key:
+        try:
+            client = openai.AsyncOpenAI(api_key=settings.openai_api_key)
+            response = await client.chat.completions.create(
+                model=m,
+                messages=messages,  # type: ignore[arg-type]
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            text = response.choices[0].message.content or ""
+            return text, p, m
+        except Exception as exc:
+            logger.exception("OpenAI GPT chat completion failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"OpenAI GPT provider error: {exc}",
+            ) from exc
 
     # 3. Google Gemini (via OpenAI-compatible endpoint)
-    if p == "gemini":
-        api_key = api_keys.get("gemini") or settings.gemini_api_key
-        if api_key:
-            try:
-                client = openai.AsyncOpenAI(
-                    api_key=api_key,
-                    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-                )
-                response = await client.chat.completions.create(
-                    model=m,
-                    messages=messages,  # type: ignore[arg-type]
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
-                text = response.choices[0].message.content or ""
-                return text, p, m
-            except Exception as exc:
-                logger.exception("Google Gemini chat completion failed: %s", exc)
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Google Gemini provider error: {exc}",
-                ) from exc
+    if p == "gemini" and settings.gemini_api_key:
+        try:
+            client = openai.AsyncOpenAI(
+                api_key=settings.gemini_api_key,
+                base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            )
+            response = await client.chat.completions.create(
+                model=m,
+                messages=messages,  # type: ignore[arg-type]
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            text = response.choices[0].message.content or ""
+            return text, p, m
+        except Exception as exc:
+            logger.exception("Google Gemini chat completion failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Google Gemini provider error: {exc}",
+            ) from exc
 
     # 4. OpenRouter (Cloud Gateway + Free Router)
-    if p == "openrouter":
-        api_key = api_keys.get("openrouter") or settings.openrouter_api_key
-        if api_key:
-            try:
-                client = openai.AsyncOpenAI(
-                    api_key=api_key,
-                    base_url=settings.openrouter_base_url,
-                    default_headers={
-                        "HTTP-Referer": settings.openrouter_site_url,
-                        "X-Title": settings.openrouter_app_title,
-                    },
-                )
-                response = await client.chat.completions.create(
-                    model=m,
-                    messages=messages,  # type: ignore[arg-type]
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                )
-                text = response.choices[0].message.content or ""
-                return text, p, m
-            except Exception as exc:
-                logger.exception("OpenRouter chat completion failed: %s", exc)
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"OpenRouter provider error: {exc}",
-                ) from exc
+    if p == "openrouter" and settings.openrouter_api_key:
+        try:
+            client = openai.AsyncOpenAI(
+                api_key=settings.openrouter_api_key,
+                base_url=settings.openrouter_base_url,
+                default_headers={
+                    "HTTP-Referer": settings.openrouter_site_url,
+                    "X-Title": settings.openrouter_app_title,
+                },
+            )
+            response = await client.chat.completions.create(
+                model=m,
+                messages=messages,  # type: ignore[arg-type]
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            text = response.choices[0].message.content or ""
+            return text, p, m
+        except Exception as exc:
+            logger.exception("OpenRouter chat completion failed: %s", exc)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"OpenRouter provider error: {exc}",
+            ) from exc
 
     # 5. Local AI (Ollama or local OpenAI-compatible server)
     if p == "ollama":
@@ -252,7 +242,6 @@ async def stream_chat_completion(
     model: Optional[str] = None,
     temperature: float = 0.2,
     max_tokens: int = 2048,
-    api_keys: Optional[Dict[str, str]] = None,
 ) -> AsyncIterator[str]:
     """
     Streams tokens for SSE chat and live summarization.
@@ -260,63 +249,54 @@ async def stream_chat_completion(
     """
     settings = get_settings()
     p, m = resolve_provider_and_model(provider, model)
-    api_keys = api_keys or {}
     yielded_any = False
 
     # 1. Anthropic Streaming (temperature omitted for Claude 3.7+ compatibility)
-    if p == "claude":
-        api_key = api_keys.get("anthropic") or settings.anthropic_api_key
-        if api_key:
-            try:
-                client = anthropic.AsyncAnthropic(api_key=api_key)
-                system_msg = next((msg["content"] for msg in messages if msg["role"] == "system"), None)
-                filtered_messages = [msg for msg in messages if msg["role"] in ("user", "assistant")]
-                kwargs: Dict[str, object] = {
-                    "model": m,
-                    "messages": filtered_messages,
-                    "max_tokens": max_tokens,
-                }
-                if system_msg:
-                    kwargs["system"] = system_msg
+    if p == "claude" and settings.anthropic_api_key:
+        try:
+            client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+            system_msg = next((msg["content"] for msg in messages if msg["role"] == "system"), None)
+            filtered_messages = [msg for msg in messages if msg["role"] in ("user", "assistant")]
+            kwargs: Dict[str, object] = {
+                "model": m,
+                "messages": filtered_messages,
+                "max_tokens": max_tokens,
+            }
+            if system_msg:
+                kwargs["system"] = system_msg
 
-                async with client.messages.stream(**kwargs) as stream:  # type: ignore[arg-type]
-                    async for text in stream.text_stream:
-                        yielded_any = True
-                        yield text
-                return
-            except Exception as exc:
-                logger.exception("Claude streaming failed: %s", exc)
-                if yielded_any:
-                    raise
-                raise HTTPException(
-                    status_code=status.HTTP_502_BAD_GATEWAY,
-                    detail=f"Anthropic Claude streaming error: {exc}",
-                ) from exc
+            async with client.messages.stream(**kwargs) as stream:  # type: ignore[arg-type]
+                async for text in stream.text_stream:
+                    yielded_any = True
+                    yield text
+            return
+        except Exception as exc:
+            logger.exception("Claude streaming failed: %s", exc)
+            if yielded_any:
+                raise
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Anthropic Claude streaming error: {exc}",
+            ) from exc
 
     # 2. OpenAI-Compatible Streaming (OpenAI, OpenRouter, Gemini, Ollama)
     client_params = None
-    if p == "gpt":
-        api_key = api_keys.get("openai") or settings.openai_api_key
-        if api_key:
-            client_params = {"api_key": api_key}
-    elif p == "openrouter":
-        api_key = api_keys.get("openrouter") or settings.openrouter_api_key
-        if api_key:
-            client_params = {
-                "api_key": api_key,
-                "base_url": settings.openrouter_base_url,
-                "default_headers": {
-                    "HTTP-Referer": settings.openrouter_site_url,
-                    "X-Title": settings.openrouter_app_title,
-                },
-            }
-    elif p == "gemini":
-        api_key = api_keys.get("gemini") or settings.gemini_api_key
-        if api_key:
-            client_params = {
-                "api_key": api_key,
-                "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
-            }
+    if p == "gpt" and settings.openai_api_key:
+        client_params = {"api_key": settings.openai_api_key}
+    elif p == "openrouter" and settings.openrouter_api_key:
+        client_params = {
+            "api_key": settings.openrouter_api_key,
+            "base_url": settings.openrouter_base_url,
+            "default_headers": {
+                "HTTP-Referer": settings.openrouter_site_url,
+                "X-Title": settings.openrouter_app_title,
+            },
+        }
+    elif p == "gemini" and settings.gemini_api_key:
+        client_params = {
+            "api_key": settings.gemini_api_key,
+            "base_url": "https://generativelanguage.googleapis.com/v1beta/openai/",
+        }
     elif p == "ollama":
         base_url = settings.local_openai_base_url or f"{settings.ollama_base_url.rstrip('/')}/v1"
         client_params = {

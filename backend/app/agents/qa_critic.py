@@ -25,7 +25,6 @@ async def qa_synthesizer_node(state: AgentState) -> AgentState:
     critic_feedback = state.get("critic_feedback")
     provider = state.get("provider")
     model = state.get("model")
-    api_keys = state.get("api_keys")
 
     context_snippets = []
     for idx, p in enumerate(retrieved, start=1):
@@ -50,7 +49,7 @@ async def qa_synthesizer_node(state: AgentState) -> AgentState:
     ]
 
     answer, provider_used, model_used = await chat_completion(
-        messages, provider=provider, model=model, api_keys=api_keys
+        messages, provider=provider, model=model
     )
 
     state["generated_answer"] = answer
