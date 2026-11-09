@@ -59,12 +59,12 @@ for port in 8001 3333; do
 done
 
 echo "Starting Summary AI backend (FastAPI) on http://localhost:8001..."
-pnpm run dev:api > "$RUNTIME_DIR/api.log" 2>&1 &
+setsid pnpm run dev:api > "$RUNTIME_DIR/api.log" 2>&1 < /dev/null &
 echo $! > "$PID_API"
 
 # Pin the web server's port so an exported PORT (used by the backend) cannot move it.
 echo "Starting Summary AI web server on http://localhost:3333..."
-PORT=3333 pnpm run dev:web > "$RUNTIME_DIR/web.log" 2>&1 &
+setsid env PORT=3333 pnpm run dev:web > "$RUNTIME_DIR/web.log" 2>&1 < /dev/null &
 echo $! > "$PID_WEB"
 
 echo ""
