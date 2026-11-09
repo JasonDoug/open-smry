@@ -52,19 +52,12 @@ def score_extraction_candidate(candidate: Optional[Dict[str, Any]]) -> float:
     if candidate.get("paywall_detected"):
         score -= 160.0
 
-    if candidate.get("redirect_detected"):
-        score -= 200.0
-
     for rx in PAYWALL_BOILERPLATE_PATTERNS:
         if rx.search(text_content):
             score -= 160.0
 
     if word_count < 15:
         score -= 45.0
-
-    # Reject token/redirect boilerplate pages masquerading as articles.
-    if word_count < 40 and passage_count <= 1:
-        score -= 120.0
 
     return round(max(0.0, score), 2)
 
@@ -229,9 +222,7 @@ async def extract_from_url(
             await client.aclose()
 
     valid_attempts = [
-        a
-        for a in attempts
-        if a.get("document") and a.get("word_count", 0) > 0 and a.get("score", 0) > 0
+        a for a in attempts if a.get("document") and a.get("word_count", 0) > 0
     ]
     valid_attempts.sort(key=lambda a: (-a["score"], a["latency_ms"]))
 

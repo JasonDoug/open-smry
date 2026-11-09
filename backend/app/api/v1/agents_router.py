@@ -13,8 +13,6 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import json
-import logging
-import re
 from typing import Any, AsyncIterator, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
@@ -25,7 +23,7 @@ from sqlalchemy.orm import Session
 from app.agents.graph import compiled_agent_graph
 from app.agents.llm_router import stream_chat_completion
 from app.agents.state import AgentState
-from app.db.models import ChatMessage, ChatThread, Document, ReaderSession, SummaryRecord
+from app.db.models import ChatMessage, ChatThread, Document, SummaryRecord
 from app.db.session import get_db
 from app.rag.retriever import hybrid_search_passages
 from app.schemas.domain import (
@@ -41,45 +39,10 @@ from app.schemas.domain import (
     SummaryResponse,
 )
 
-logger = logging.getLogger(__name__)
-
 agents_router = APIRouter(
     prefix="/api/v1",
     tags=["Sprint 4: LangGraph Multi-Agent System & Multi-LLM Router"],
 )
-
-
-def _resolve_api_keys(
-    db: Session,
-    session_id: Optional[str],
-    override: Optional[Dict[str, str]],
-) -> Dict[str, str]:
-    """
-    Builds the effective api_keys mapping for a request: per-request overrides
-    take precedence over the keys persisted on the reader session (settings page).
-    Session columns use <provider>_api_key names; the LLM router expects bare
-    provider names (anthropic, openai, gemini, openrouter).
-    """
-    keys: Dict[str, str] = {}
-    if session_id:
-        # Session IDs are bearer credentials. Legacy 48-bit IDs are insufficient
-        # to authorize spending persisted provider keys.
-        if not re.fullmatch(r"sess_[0-9a-f]{48}", session_id):
-            if override:
-                return {k: v for k, v in override.items() if v}
-            raise HTTPException(status_code=403, detail="Create a new reader session to use saved API keys")
-        sess = db.get(ReaderSession, session_id)
-        if sess:
-            column_map = {
-                "anthropic": sess.anthropic_api_key,
-                "openai": sess.openai_api_key,
-                "gemini": sess.gemini_api_key,
-                "openrouter": sess.openrouter_api_key,
-            }
-            keys.update({k: v for k, v in column_map.items() if v})
-    if override:
-        keys.update({k: v for k, v in override.items() if v})
-    return keys
 
 
 @agents_router.post(
@@ -121,7 +84,6 @@ async def generate_document_summary(
         "custom_prompt": payload.custom_prompt,
         "provider": payload.provider,
         "model": payload.model,
-        "api_keys": _resolve_api_keys(db, payload.session_id, payload.api_keys),
         "iteration": 0,
     }
 
@@ -238,7 +200,6 @@ async def ask_document_with_critic(
         "retrieved_passages": ranked,
         "provider": payload.provider,
         "model": payload.model,
-        "api_keys": _resolve_api_keys(db, payload.session_id, payload.api_keys),
         "iteration": 0,
     }
 
@@ -290,7 +251,6 @@ async def ask_contextual_excerpt(
         "action_or_question": payload.action_or_question,
         "provider": payload.provider,
         "model": payload.model,
-        "api_keys": _resolve_api_keys(db, payload.session_id, payload.api_keys),
         "iteration": 0,
     }
 
@@ -375,50 +335,14 @@ async def chat_interaction(
                     "content": f"You are a research assistant conversing about the document '{doc.title}'. Ground your answers in this text:\n\n{doc.text_content[:3000]}",
                 },
             )
-    else:
-        # Library-wide RAG context: retrieve relevant passages across ALL saved
-        # documents so questions like "tell me about articles relating to rome" work.
-        try:
-            ranked, _ = hybrid_search_passages(
-                db, payload.message, top_k=5, saved_only=True
-            )
-        except Exception:
-            logger.exception(
-                "Library-wide passage retrieval failed for chat; continuing without context"
-            )
-            ranked = []
-        if ranked:
-            snippets = "\n\n".join(
-                f"- [{p.get('document_title', 'Untitled')}] "
-                f"( passage {p.get('paragraph_index', '?')} ) {p.get('exact_quote', '')[:400]}"
-                for p in ranked
-            )
-            messages.insert(
-                0,
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a research assistant with search access to the user's saved reading library. "
-                        "The most relevant passages from their library are:\n\n"
-                        f"{snippets}\n\n"
-                        "Answer using these passages and cite the [document title] each claim comes from. "
-                        "If nothing in the library is relevant, say so plainly."
-                    ),
-                },
-            )
 
     wants_stream = stream or "text/event-stream" in request.headers.get("accept", "").lower()
 
     if wants_stream:
-        api_keys = _resolve_api_keys(db, payload.session_id, payload.api_keys)
-
         async def event_generator() -> AsyncIterator[str]:
             full_response_parts: List[str] = []
             async for chunk in stream_chat_completion(
-                messages,
-                provider=payload.provider,
-                model=payload.model,
-                api_keys=api_keys,
+                messages, provider=payload.provider, model=payload.model
             ):
                 full_response_parts.append(chunk)
                 payload_json = json.dumps({"thread_id": thread.id, "token": chunk})
@@ -449,7 +373,6 @@ async def chat_interaction(
         "messages": messages,
         "provider": payload.provider,
         "model": payload.model,
-        "api_keys": _resolve_api_keys(db, payload.session_id, payload.api_keys),
     }
     result = await compiled_agent_graph.ainvoke(initial_state)
     answer = result.get("final_output") or ""

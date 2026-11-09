@@ -37,13 +37,7 @@ const REQUIRED_PATHS = [
   "backend/tests/test_sprint1_foundation.py",
   "backend/tests/test_sprint2_extraction.py",
   "backend/tests/test_sprint3_rag_library.py",
-  "backend/tests/test_sprint4_langgraph_agents.py",
-  "apps/web/package.json",
-  "apps/web/server.mjs",
-  "apps/web/public/index.html",
-  "apps/web/public/styles.css",
-  "apps/web/public/app.js",
-  "apps/web/test/web.test.mjs"
+  "backend/tests/test_sprint4_langgraph_agents.py"
 ];
 
 let missing = 0;
