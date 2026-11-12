@@ -411,6 +411,7 @@ class ExtractedDocumentResponse(BaseModel):
     source_score: float
     source_attempts: List[SourceAttemptSchema] = Field(default_factory=list)
     saved_in_library: bool
+    paywall_detected: bool = False
     tags: List[str] = Field(default_factory=list)
     passages: List[PassageChunkSchema] = Field(default_factory=list)
     transcript_segments: Optional[List[TranscriptSegmentSchema]] = None

@@ -57,6 +57,7 @@ class KaraokeWord:
     text: str
 
     def as_dict(self) -> Dict[str, Any]:
+        """Serializes the word timing into a JSON-friendly dict."""
         return {
             "word_index": self.word_index,
             "start_ms": self.start_ms,
@@ -102,6 +103,15 @@ def _tokenize_words(text: str) -> List[Dict[str, Any]]:
     return tokens
 
 
+_ALIGN_LOOKAHEAD = 5
+_STRIP_CHARS = ".,;:!?\"'()[]{}"
+
+
+def _normalize_word(word: str) -> str:
+    """Lowercases a word and strips surrounding punctuation for tolerant matching."""
+    return word.lower().strip(_STRIP_CHARS)
+
+
 def align_word_boundaries(
     text: str,
     boundaries: List[Dict[str, Any]],
@@ -113,30 +123,37 @@ def align_word_boundaries(
     not report source character offsets, each event is matched to the next
     unaligned word token in the source text (case/punctuation tolerant) so the
     returned timings satisfy text[char_start:char_end] coverage in reading order.
-    Events that cannot be matched (e.g. engine tokenization quirks) are skipped.
+    Events that cannot be matched (e.g. engine tokenization quirks) are skipped
+    without consuming source tokens, so a single unmatched event (e.g. "US" for
+    "U.S.") never desynchronizes the rest of the narration.
     """
     tokens = _tokenize_words(text)
     karaoke: List[KaraokeWord] = []
     token_idx = 0
-    for idx, b in enumerate(boundaries):
+    for b in boundaries:
         spoken = str(b.get("text", "")).strip()
         if not spoken or token_idx >= len(tokens):
             continue
-        # Advance past any tokens the engine merged/split until a tolerant match.
-        matched = None
-        while token_idx < len(tokens):
-            candidate = tokens[token_idx]["text"]
-            if candidate.lower().strip(".,;:!?\"'()[]{}") == spoken.lower().strip(".,;:!?\"'()[]{}"):
-                matched = tokens[token_idx]
+        spoken_norm = _normalize_word(spoken)
+        matched_idx: Optional[int] = None
+        # Exact (case/punctuation tolerant) match within a short lookahead window,
+        # tolerating source tokens the engine did not voice (e.g. dashes).
+        for offset in range(_ALIGN_LOOKAHEAD):
+            j = token_idx + offset
+            if j >= len(tokens):
                 break
-            # Tolerate engine splitting hyphenated/contracted words: accept prefix match.
-            if len(spoken) >= 3 and candidate.lower().startswith(spoken.lower()[:3]):
-                matched = tokens[token_idx]
+            if _normalize_word(tokens[j]["text"]) == spoken_norm:
+                matched_idx = j
                 break
-            token_idx += 1
-        if matched is None:
+        # Tolerate engine splitting hyphenated/contracted words: prefix match on
+        # the current token only, so it can never skip intervening words.
+        if matched_idx is None and len(spoken) >= 3:
+            if tokens[token_idx]["text"].lower().startswith(spoken.lower()[:3]):
+                matched_idx = token_idx
+        if matched_idx is None:
             continue
-        token_idx += 1
+        matched = tokens[matched_idx]
+        token_idx = matched_idx + 1
         start_ms = max(0, int(round(b.get("start_ms", 0))))
         end_ms = max(start_ms, int(round(b.get("end_ms", 0))))
         karaoke.append(
@@ -310,7 +327,8 @@ async def synthesize_speech(
 
     words = _fallback_word_timings(text, speed)
     return TTSResult(
-        audio=_fallback_synthesize(text, speed),
+        # CPU-bound sample rendering: keep it off the event loop.
+        audio=await asyncio.to_thread(_fallback_synthesize, text, speed),
         mime_type="audio/wav",
         voice_id=voice_id,
         speed=speed,

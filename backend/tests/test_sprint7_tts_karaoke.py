@@ -16,7 +16,10 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app
+from app.tts import engine as tts_engine
 from app.tts.engine import (
+    TTSError,
+    TTSResult,
     _fallback_word_timings,
     align_word_boundaries,
     synthesize_speech,
@@ -33,6 +36,7 @@ def client(tmp_path):
     TestingSessionLocal = get_session_factory(engine)
 
     def override_get_db():
+        """Yields a session bound to the per-test SQLite database."""
         db = TestingSessionLocal()
         try:
             yield db
@@ -46,6 +50,7 @@ def client(tmp_path):
 
 
 def test_tts_voices_catalog(client) -> None:
+    """The catalog exposes all 10 voices across the six supported accents."""
     res = client.get("/api/v1/tts/voices")
     assert res.status_code == 200
     voices = res.json()["voices"]
@@ -57,6 +62,7 @@ def test_tts_voices_catalog(client) -> None:
 
 @pytest.mark.asyncio
 async def test_fallback_synthesis_is_deterministic_wav() -> None:
+    """Forced fallback yields a valid mono 16-bit PCM WAV without network access."""
     text = "Karaoke narration must keep working offline."
     result = await synthesize_speech(text, "aria-us-f", 1.0, force_fallback=True)
     assert result.synthesis_engine == "offline-fallback"
@@ -72,6 +78,7 @@ async def test_fallback_synthesis_is_deterministic_wav() -> None:
 
 @pytest.mark.asyncio
 async def test_karaoke_word_offsets_satisfy_exact_slice_invariant() -> None:
+    """Every timed word slices back to itself and timings are monotonic."""
     text = (
         "Grounding every spoken word in exact character offsets keeps narration "
         "verifiable against the source document."
@@ -91,6 +98,7 @@ async def test_karaoke_word_offsets_satisfy_exact_slice_invariant() -> None:
 
 
 def test_align_word_boundaries_matches_engine_events() -> None:
+    """Engine boundary events map onto exact source offsets, tolerating punctuation."""
     text = "Exact offsets anchor every citation."
     # Simulated edge-tts style events (already in ms).
     boundaries = [
@@ -108,13 +116,42 @@ def test_align_word_boundaries_matches_engine_events() -> None:
 
 
 def test_fallback_timings_scale_with_speed() -> None:
+    """Slower narration spreads proportional fallback timings further apart."""
     text = "Slow narration spreads word timings further apart than fast narration."
     slow = _fallback_word_timings(text, 0.5)
     fast = _fallback_word_timings(text, 2.0)
     assert slow[-1].end_ms > fast[-1].end_ms * 2
 
 
-def test_tts_synthesize_endpoint_offline_fallback(client) -> None:
+def test_align_word_boundaries_survives_unmatched_event() -> None:
+    """An unmatched event mid-stream is skipped without dropping later words."""
+    text = "Visit the U.S. today and then there"
+    spoken = ["Visit", "the", "US", "today", "and", "then", "there"]
+    boundaries = [
+        {"text": w, "start_ms": i * 100, "end_ms": i * 100 + 90}
+        for i, w in enumerate(spoken)
+    ]
+    karaoke = align_word_boundaries(text, boundaries)
+    assert [w.text for w in karaoke] == ["Visit", "the", "today", "and", "then", "there"]
+    for word in karaoke:
+        assert text[word.char_start : word.char_end] == word.text
+    # Later words keep their own engine timings (no shift from the skipped event).
+    assert karaoke[2].start_ms == 300
+    assert karaoke[-1].start_ms == 600
+
+
+def _offline_edge(monkeypatch) -> None:
+    """Makes edge-tts fail deterministically so the offline fallback is exercised."""
+
+    async def _raise(*_args, **_kwargs):
+        raise TTSError("edge-tts disabled in tests")
+
+    monkeypatch.setattr(tts_engine, "_edge_synthesize", _raise)
+
+
+def test_tts_synthesize_endpoint_offline_fallback(client, monkeypatch) -> None:
+    """With edge-tts unavailable the endpoint serves the offline WAV fallback."""
+    _offline_edge(monkeypatch)
     payload = {
         "text": "The reader highlights each word as the audio plays.",
         "voice_id": "elena-uk-f",
@@ -125,7 +162,8 @@ def test_tts_synthesize_endpoint_offline_fallback(client) -> None:
     data = res.json()
     assert data["voice_id"] == "elena-uk-f"
     assert data["speed"] == 1.5
-    assert data["synthesis_engine"] in {"edge-tts", "offline-fallback"}
+    assert data["synthesis_engine"] == "offline-fallback"
+    assert data["mime_type"] == "audio/wav"
     audio = base64.b64decode(data["audio_base64"])
     assert len(audio) > 100
     words = data["words"]
@@ -137,7 +175,40 @@ def test_tts_synthesize_endpoint_offline_fallback(client) -> None:
     assert all(w["start_ms"] >= 0 for w in words)
 
 
+def test_tts_synthesize_endpoint_edge_path(client, monkeypatch) -> None:
+    """A successful (stubbed) edge-tts result is returned as MP3 with its timings."""
+    text = "Neural narration stays in sync."
+
+    async def _fake_edge(text_arg, voice_id, speed):
+        boundaries = [
+            {"text": w, "start_ms": i * 200, "end_ms": i * 200 + 180}
+            for i, w in enumerate(["Neural", "narration", "stays", "in", "sync"])
+        ]
+        return TTSResult(
+            audio=b"ID3fake-mp3-bytes",
+            mime_type="audio/mpeg",
+            voice_id=voice_id,
+            speed=speed,
+            words=align_word_boundaries(text_arg, boundaries),
+            synthesis_engine="edge-tts",
+        )
+
+    monkeypatch.setattr(tts_engine, "_edge_synthesize", _fake_edge)
+    res = client.post(
+        "/api/v1/tts/synthesize",
+        json={"text": text, "voice_id": "aria-us-f", "speed": 1.0},
+    )
+    assert res.status_code == 200
+    data = res.json()
+    assert data["synthesis_engine"] == "edge-tts"
+    assert data["mime_type"] == "audio/mpeg"
+    assert base64.b64decode(data["audio_base64"]) == b"ID3fake-mp3-bytes"
+    assert [w["text"] for w in data["words"]] == ["Neural", "narration", "stays", "in", "sync."]
+    assert data["duration_ms"] == 980
+
+
 def test_tts_synthesize_validation_errors(client) -> None:
+    """Unknown voices, out-of-range speeds, and empty text are rejected with 422."""
     bad_voice = client.post(
         "/api/v1/tts/synthesize",
         json={"text": "hello", "voice_id": "not-a-voice", "speed": 1.0},

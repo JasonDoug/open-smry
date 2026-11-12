@@ -169,6 +169,10 @@ def test_library_crud_and_filtering(client) -> None:
     get_res = client.get(f"/api/v1/documents/{doc_id}")
     assert get_res.status_code == 404
 
+    # Reading history must not keep entries pointing at the deleted document
+    hist_items = client.get("/api/v1/history?limit=100").json()["items"]
+    assert all(item["document_id"] != doc_id for item in hist_items)
+
 
 def test_library_reindex_and_reading_history_and_cloud_sync(client) -> None:
     res = client.post(

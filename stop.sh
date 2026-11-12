@@ -12,7 +12,21 @@ PID_WEB="$RUNTIME_DIR/web.pid"
 
 belongs_to_project() {
   local pid="$1"
+  # start.sh records the `pnpm run dev:*` launcher, whose cmdline names no
+  # project path — so also accept processes running from this repo directory.
+  [[ "$(readlink "/proc/$pid/cwd" 2>/dev/null)" == "$ROOT_DIR" ]] && return 0
   tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -q "open-smry\|uvicorn app.main\|apps/web/server.mjs"
+}
+
+# start.sh launches each service via setsid, so the recorded PID leads its own
+# process group: signal the whole group so uvicorn/node children stop too.
+signal_service() {
+  local sig="$1" pid="$2"
+  if [[ "$(ps -o pgid= -p "$pid" 2>/dev/null | tr -d ' ')" == "$pid" ]]; then
+    kill "-$sig" -- "-$pid" 2>/dev/null || true
+  else
+    kill "-$sig" "$pid" 2>/dev/null || true
+  fi
 }
 
 stop_pid() {
@@ -24,11 +38,11 @@ stop_pid() {
     if kill -0 "$pid" 2>/dev/null; then
       if belongs_to_project "$pid"; then
         echo "Stopping $name (PID $pid)..."
-        kill "$pid" 2>/dev/null || true
+        signal_service TERM "$pid"
         sleep 1
         if kill -0 "$pid" 2>/dev/null; then
           echo "Force-killing $name (PID $pid)..."
-          kill -9 "$pid" 2>/dev/null || true
+          signal_service KILL "$pid"
         fi
       else
         echo "$name PID $pid no longer belongs to open-smry (PID reuse?) — leaving it untouched."

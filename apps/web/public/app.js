@@ -212,7 +212,6 @@ function renderDocumentInReader(doc) {
   const titleEl = document.getElementById("article-title");
   const bylineEl = document.getElementById("article-byline");
   const statsBadge = document.getElementById("article-stats-badge");
-  const bodyEl = document.getElementById("article-body");
 
   // Metadata & Byline
   const mediaType = (doc.media_type || "article").toUpperCase();
@@ -247,7 +246,25 @@ function renderDocumentInReader(doc) {
   // Render Telemetry Pills
   renderTelemetryPills(doc);
 
-  // Render Body — prefer pre-sanitized HTML from backend
+  // Flag paywalled previews so they aren't mistaken for the full article.
+  const paywallNotice = document.getElementById("paywall-notice");
+  if (paywallNotice) paywallNotice.classList.toggle("hidden", !doc.paywall_detected);
+
+  renderArticleBody(doc);
+
+  // Pre-fill / reset QA & Summary views
+  const qaResults = document.getElementById("qa-results-box");
+  if (qaResults) qaResults.classList.add("hidden");
+  const summaryBox = document.getElementById("summary-output");
+  if (summaryBox) {
+    const safeTitle = doc.title || "Untitled Document";
+    summaryBox.innerHTML = `<span class="muted-small">Ready to summarize "${escapeHtml(safeTitle.slice(0, 48))}...". Click "Generate Summary" above.</span>`;
+  }
+}
+
+// Render the article body only — prefers pre-sanitized HTML from backend.
+function renderArticleBody(doc) {
+  const bodyEl = document.getElementById("article-body");
   bodyEl.innerHTML = "";
   const contentHtml = doc.content_html || "";
   if (contentHtml.trim()) {
@@ -264,15 +281,6 @@ function renderDocumentInReader(doc) {
 
   // Client-side safety-net: strip distraction elements backend may have missed
   stripReaderExtras(bodyEl);
-
-  // Pre-fill / reset QA & Summary views
-  const qaResults = document.getElementById("qa-results-box");
-  if (qaResults) qaResults.classList.add("hidden");
-  const summaryBox = document.getElementById("summary-output");
-  if (summaryBox) {
-    const safeTitle = doc.title || "Untitled Document";
-    summaryBox.innerHTML = `<span class="muted-small">Ready to summarize "${escapeHtml(safeTitle.slice(0, 48))}...". Click "Generate Summary" above.</span>`;
-  }
 }
 
 function renderTelemetryPills(doc) {
@@ -678,24 +686,49 @@ function stopKaraoke({ restore = true } = {}) {
   const statusEl = document.getElementById("karaoke-status");
   if (statusEl) statusEl.textContent = "";
   if (restore && state.currentDocument) {
-    renderDocumentInReader(state.currentDocument);
+    // Body only: keep any displayed summary / Q&A answer intact.
+    renderArticleBody(state.currentDocument);
   }
 }
 
+// Backend offsets are Python code-point indices; JS strings index UTF-16 units.
+// Returns a converter for monotonically increasing UTF-16 indices (O(n) total).
+function makeCodePointCounter(text) {
+  let u16 = 0;
+  let cp = 0;
+  return (index) => {
+    while (u16 < index) {
+      const code = text.charCodeAt(u16);
+      // A high surrogate followed by a low surrogate is one code point.
+      if (code >= 0xd800 && code <= 0xdbff && u16 + 1 < text.length) {
+        const next = text.charCodeAt(u16 + 1);
+        if (next >= 0xdc00 && next <= 0xdfff) u16 += 1;
+      }
+      u16 += 1;
+      cp += 1;
+    }
+    return cp;
+  };
+}
+
+// Re-render the article as word spans. Timed words (those with a narration
+// timestamp) are keyboard-operable buttons using a roving tabindex.
 function renderKaraokeBody(doc, words) {
   const bodyEl = document.getElementById("article-body");
   const wordMap = new Map(words.map((w) => [w.char_start, w]));
   const text = doc.text_content || "";
+  const toCp = makeCodePointCounter(text);
   const paragraphs = text.split(/\n\s*\n/);
   bodyEl.innerHTML = "";
   let cursor = 0;
+  let firstTimed = null;
 
   for (const para of paragraphs) {
     const trimmedStart = text.indexOf(para, cursor);
     const p = document.createElement("p");
     p.className = "karaoke-para";
     if (trimmedStart >= 0) {
-      // Emit words with exact source offsets as clickable spans.
+      // Slice with UTF-16 offsets; tag spans with code-point offsets.
       let local = trimmedStart;
       const wordRe = /\S+/g;
       let m;
@@ -705,14 +738,19 @@ function renderKaraokeBody(doc, words) {
         if (charStart > local) {
           p.append(text.slice(local, charStart));
         }
+        const cpStart = toCp(charStart);
+        const cpEnd = toCp(charEnd);
         const span = document.createElement("span");
         span.className = "karaoke-word";
-        span.dataset.cs = String(charStart);
-        span.dataset.ce = String(charEnd);
+        span.dataset.cs = String(cpStart);
+        span.dataset.ce = String(cpEnd);
         span.textContent = m[0];
-        if (wordMap.has(charStart)) {
-          const w = wordMap.get(charStart);
+        const w = wordMap.get(cpStart);
+        if (w) {
           span.dataset.ms = String(w.start_ms);
+          span.setAttribute("role", "button");
+          span.tabIndex = firstTimed ? -1 : 0;
+          if (!firstTimed) firstTimed = span;
         }
         p.appendChild(span);
         local = charEnd;
@@ -728,14 +766,31 @@ function renderKaraokeBody(doc, words) {
   }
 }
 
-function seekKaraokeToChar(charStart) {
+// Start/resume karaoke playback. A rejected play() (autoplay policy, decode
+// error) leaves the player usable with ▶ so the user can retry.
+function playKaraoke() {
   if (!state.karaoke) return;
-  const word = state.karaoke.words.find((w) => w.char_start <= charStart);
-  const target = word || state.karaoke.words[0];
-  if (target && state.karaoke.audio) {
-    state.karaoke.audio.currentTime = target.start_ms / 1000;
-    if (state.karaoke.audio.paused) state.karaoke.audio.play();
-  }
+  state.karaoke.audio.play().catch((err) => {
+    document.getElementById("karaoke-play-btn").textContent = "▶";
+    showToast(`Playback blocked: ${err.message}. Press ▶ to retry.`);
+  });
+}
+
+// Seek audio to a timed word span; untimed spans are ignored.
+function seekKaraokeToSpan(span) {
+  if (!state.karaoke || !span || span.dataset.ms === undefined) return;
+  const ms = parseFloat(span.dataset.ms);
+  if (!Number.isFinite(ms)) return;
+  state.karaoke.audio.currentTime = ms / 1000;
+  if (state.karaoke.audio.paused) playKaraoke();
+}
+
+// Move the single roving tab stop to `span` and focus it.
+function focusKaraokeWord(span) {
+  const current = document.querySelector('.karaoke-word[tabindex="0"]');
+  if (current && current !== span) current.tabIndex = -1;
+  span.tabIndex = 0;
+  span.focus();
 }
 
 function highlightKaraokeWord() {
@@ -773,15 +828,15 @@ function highlightKaraokeWord() {
 }
 
 async function startKaraoke() {
-  if (!state.currentDocument || !state.currentDocument.text_content) {
+  // Capture the document so a reader switch mid-request can't mix content.
+  const doc = state.currentDocument;
+  if (!doc || !doc.text_content) {
     showToast("Load an article or book first to listen.");
     return;
   }
-  const text = state.currentDocument.text_content.slice(0, 10000);
-  const voiceId =
-    document.getElementById("karaoke-voice-select")?.value ||
-    state.sessionSettings?.preferred_voice_id ||
-    "aria-us-f";
+  const text = doc.text_content.slice(0, 10000);
+  // The selector is initialized from the session's preferred voice.
+  const voiceId = document.getElementById("karaoke-voice-select")?.value || "aria-us-f";
   const btn = document.getElementById("karaoke-toggle-btn");
   const statusEl = document.getElementById("karaoke-status");
   btn.disabled = true;
@@ -798,6 +853,12 @@ async function startKaraoke() {
       })
     });
 
+    if (state.currentDocument !== doc) {
+      // User opened another document while synthesizing — discard.
+      statusEl.textContent = "";
+      return;
+    }
+
     const audio = new Audio(`data:${data.mime_type};base64,${data.audio_base64}`);
     audio.playbackRate = parseFloat(document.getElementById("karaoke-speed-select").value) || 1.0;
 
@@ -808,25 +869,30 @@ async function startKaraoke() {
       activeEl: null
     };
 
-    renderKaraokeBody(state.currentDocument, data.words);
+    renderKaraokeBody(doc, data.words);
 
+    const playBtn = document.getElementById("karaoke-play-btn");
     audio.addEventListener("timeupdate", highlightKaraokeWord);
+    audio.addEventListener("play", () => { playBtn.textContent = "⏸"; });
+    audio.addEventListener("pause", () => { playBtn.textContent = "▶"; });
     audio.addEventListener("ended", () => {
       if (state.karaoke?.activeEl) state.karaoke.activeEl.classList.remove("karaoke-active");
-      document.getElementById("karaoke-play-btn").textContent = "▶";
+      playBtn.textContent = "▶";
     });
 
     document.getElementById("karaoke-player").classList.remove("hidden");
-    document.getElementById("karaoke-play-btn").textContent = "⏸";
+    playBtn.textContent = "▶";
     btn.textContent = "⏹ Stop";
     statusEl.textContent = `${data.synthesis_engine} • ${data.words.length} words`;
-    await audio.play();
   } catch (err) {
     showToast(`TTS error: ${err.message}`);
     statusEl.textContent = "";
+    return;
   } finally {
     btn.disabled = false;
   }
+  // Outside the TTS error path: a playback rejection is not a synthesis failure.
+  playKaraoke();
 }
 
 // Library & History
@@ -851,6 +917,82 @@ function relTime(iso) {
   const weeks = Math.floor(days / 7);
   if (weeks < 5) return `${weeks}w`;
   return `${Math.floor(days / 30)}mo`;
+}
+
+// Library list items are lightweight summaries (no content_html/text_content),
+// so always fetch the full document before rendering it in the reader.
+async function openLibraryDocument(documentId) {
+  try {
+    const doc = await apiFetch(`/api/v1/documents/${encodeURIComponent(documentId)}`);
+    showMainView("reader");
+    renderDocumentInReader(doc);
+    showToast(`Loaded "${(doc.title || "Untitled Document").slice(0, 36)}..."`);
+  } catch (err) {
+    showToast(`Failed to open document: ${err.message}`);
+  }
+}
+
+// Card / row "⋯" options menu (one shared popover).
+function closeCardMenu() {
+  const menu = document.getElementById("card-options-menu");
+  if (!menu) return;
+  menu.remove();
+  document.querySelectorAll('.card-menu-btn[aria-expanded="true"]').forEach((b) => b.setAttribute("aria-expanded", "false"));
+}
+
+function openCardMenu(button, doc) {
+  const wasOpen = button.getAttribute("aria-expanded") === "true";
+  closeCardMenu();
+  if (wasOpen) return;
+  const menu = document.createElement("div");
+  menu.id = "card-options-menu";
+  menu.className = "card-options-menu";
+  menu.setAttribute("role", "menu");
+  const del = document.createElement("button");
+  del.type = "button";
+  del.className = "card-menu-item danger";
+  del.setAttribute("role", "menuitem");
+  del.textContent = "🗑 Delete";
+  del.addEventListener("click", (e) => {
+    e.stopPropagation();
+    closeCardMenu();
+    deleteLibraryDocument(doc);
+  });
+  menu.appendChild(del);
+  document.body.appendChild(menu);
+  const rect = button.getBoundingClientRect();
+  menu.style.top = `${rect.bottom + window.scrollY + 4}px`;
+  menu.style.left = `${Math.max(8, rect.right + window.scrollX - menu.offsetWidth)}px`;
+  button.setAttribute("aria-expanded", "true");
+  del.focus();
+}
+
+function buildCardMenuButton(doc) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "card-menu-btn";
+  btn.title = "More options";
+  btn.setAttribute("aria-label", `Options for ${doc.title || "document"}`);
+  btn.setAttribute("aria-haspopup", "menu");
+  btn.setAttribute("aria-expanded", "false");
+  btn.textContent = "⋯";
+  btn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    openCardMenu(btn, doc);
+  });
+  return btn;
+}
+
+async function deleteLibraryDocument(doc) {
+  const title = doc.title || "Untitled Document";
+  if (!window.confirm(`Delete "${title}" from your library? This cannot be undone.`)) return;
+  try {
+    await apiFetch(`/api/v1/library/${encodeURIComponent(doc.id)}`, { method: "DELETE" });
+    showToast(`Deleted "${title.slice(0, 36)}..."`);
+    await refreshLibrary();
+  } catch (err) {
+    showToast(`Delete failed: ${err.message}`);
+  }
 }
 
 // Smry-style library card: favicon cover, domain label, title, excerpt, meta.
@@ -899,11 +1041,8 @@ function buildLibraryCard(doc) {
       <button type="button" class="btn-open-card" data-doc-id="${doc.id}">Open in Reader ↗</button>
     </div>
   `;
-  card.querySelector("[data-doc-id]").addEventListener("click", () => {
-    showMainView("reader");
-    renderDocumentInReader(doc);
-    showToast(`Loaded "${(doc.title || "Untitled Document").slice(0, 36)}..."`);
-  });
+  card.querySelector("[data-doc-id]").addEventListener("click", () => openLibraryDocument(doc.id));
+  card.querySelector(".card-cover").appendChild(buildCardMenuButton(doc));
   return card;
 }
 
@@ -925,11 +1064,8 @@ function buildLibraryRow(doc) {
     <div class="row-meta">${escapeHtml(age)} • ${doc.word_count || 0}w</div>
     <button type="button" class="btn-tiny" data-doc-id="${doc.id}">Open ↗</button>
   `;
-  row.querySelector("[data-doc-id]").addEventListener("click", () => {
-    showMainView("reader");
-    renderDocumentInReader(doc);
-    showToast(`Loaded "${(doc.title || "Untitled Document").slice(0, 36)}..."`);
-  });
+  row.querySelector("[data-doc-id]").addEventListener("click", () => openLibraryDocument(doc.id));
+  row.appendChild(buildCardMenuButton(doc));
   return row;
 }
 
@@ -1120,6 +1256,13 @@ function applySettingsToUi(settings) {
     b.classList.toggle("active", isActive);
     b.setAttribute("aria-checked", String(isActive));
   });
+
+  // Narration voice: apply the session preference when it is a known option.
+  const voiceSelect = document.getElementById("karaoke-voice-select");
+  if (voiceSelect && settings.preferred_voice_id &&
+      Array.from(voiceSelect.options).some((o) => o.value === settings.preferred_voice_id)) {
+    voiceSelect.value = settings.preferred_voice_id;
+  }
 
   // AI Provider & API Key status
   const providerSelect = document.getElementById("settings-ai-provider");
@@ -1429,16 +1572,39 @@ async function init() {
     });
   }
 
-  // Karaoke word-click seek: click any highlighted word to jump audio there.
-  document.getElementById("article-body").addEventListener("click", (e) => {
+  // Karaoke word-click seek: click any timed word to jump audio there.
+  const articleBody = document.getElementById("article-body");
+  articleBody.addEventListener("click", (e) => {
     const span = e.target.closest(".karaoke-word");
-    if (span && state.karaoke) {
-      const ms = parseFloat(span.dataset.ms || "0");
-      state.karaoke.audio.currentTime = ms / 1000;
-      if (state.karaoke.audio.paused) state.karaoke.audio.play();
-      document.getElementById("karaoke-play-btn").textContent = "⏸";
+    if (span) seekKaraokeToSpan(span);
+  });
+  // Keyboard: Enter/Space seeks; arrow keys move the roving tab stop.
+  articleBody.addEventListener("keydown", (e) => {
+    const span = e.target.closest('.karaoke-word[role="button"]');
+    if (!span || !state.karaoke) return;
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      seekKaraokeToSpan(span);
+    } else if (["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"].includes(e.key)) {
+      e.preventDefault();
+      const timed = Array.from(articleBody.querySelectorAll('.karaoke-word[role="button"]'));
+      const idx = timed.indexOf(span);
+      const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : -1;
+      const target = timed[idx + step];
+      if (target) focusKaraokeWord(target);
     }
   });
+
+  // Close the card options menu on outside click / Escape / scroll.
+  document.addEventListener("click", (e) => {
+    if (!e.target.closest("#card-options-menu")) closeCardMenu();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") closeCardMenu();
+  });
+  window.addEventListener("resize", closeCardMenu);
+  // Capture phase: also close when an inner scroll container (library grid) scrolls.
+  window.addEventListener("scroll", closeCardMenu, true);
 
   // Karaoke TTS controls
   document.getElementById("karaoke-toggle-btn").addEventListener("click", () => {
@@ -1452,12 +1618,11 @@ async function init() {
   const playBtn = document.getElementById("karaoke-play-btn");
   playBtn.addEventListener("click", () => {
     if (!state.karaoke) return;
+    // Button label follows the audio's play/pause events.
     if (state.karaoke.audio.paused) {
-      state.karaoke.audio.play();
-      playBtn.textContent = "⏸";
+      playKaraoke();
     } else {
       state.karaoke.audio.pause();
-      playBtn.textContent = "▶";
     }
   });
 

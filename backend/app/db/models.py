@@ -103,6 +103,8 @@ class Document(Base):
 
     # Library Filing & Tags
     saved_in_library: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    # True when only a paywalled preview could be extracted (full text unavailable).
+    paywall_detected: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     tags_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

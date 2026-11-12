@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import html as html_lib
+import re
 import time
 from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import quote
@@ -78,6 +79,82 @@ def _wrap_plain_text_as_html(raw_text: str, title: str = "Extracted Article") ->
     return f"<html><head><title>{html_lib.escape(title)}</title></head><body><article>{''.join(paras)}</article></body></html>"
 
 
+_MD_IMAGE_RE = re.compile(r"!\[[^\]]*\]\([^)]*\)")
+_MD_LINK_RE = re.compile(r"\[([^\]]*)\]\([^)]*\)")
+_MD_HEADING_RE = re.compile(r"^(#{1,6})\s+(.*)$")
+_MD_BULLET_RE = re.compile(r"^[*+-]\s+")
+_MD_RULE_RE = re.compile(r"^(?:[*_-]\s*){3,}$")
+_JINA_HEADER_RE = re.compile(r"^(Title|URL Source|Published Time):\s*(.*)$")
+
+
+def parse_jina_reader_output(raw_text: str, target_url: str) -> tuple[str, bool]:
+    """
+    Converts r.jina.ai reader output (a ``Title:/URL Source:/Published Time:``
+    header followed by ``Markdown Content:``) into minimal HTML for the sanitizer.
+
+    - Header fields become <title>/og:title and article:published_time metadata.
+    - Images are dropped and links are flattened to their anchor text.
+    - Blocks made almost entirely of links (site navigation, "Most Read" rails)
+      are dropped.
+    - When a subscription-wall prompt appears, everything after it is page
+      chrome (the article was cut off), so the body is truncated there and the
+      result is flagged as a paywalled preview.
+
+    Returns ``(html, paywall_truncated)``.
+    """
+    header: Dict[str, str] = {}
+    body = raw_text
+    marker = "Markdown Content:"
+    if marker in raw_text:
+        head, body = raw_text.split(marker, 1)
+        for line in head.splitlines():
+            m = _JINA_HEADER_RE.match(line.strip())
+            if m:
+                header[m.group(1)] = m.group(2).strip()
+
+    title = header.get("Title") or target_url
+    published = header.get("Published Time")
+    blocks: List[str] = []
+    paywall_truncated = False
+
+    for raw_block in re.split(r"\n\s*\n", body):
+        block = raw_block.strip()
+        if not block or _MD_RULE_RE.match(block):
+            continue
+        no_images = _MD_IMAGE_RE.sub("", block)
+        flattened = _MD_LINK_RE.sub(r"\1", no_images).strip()
+        if any(rx.search(flattened) for rx in PAYWALL_BOILERPLATE_PATTERNS):
+            paywall_truncated = True
+            break
+        # Text that is NOT inside a link: if (almost) none, it's a link rail.
+        unlinked = _MD_LINK_RE.sub("", no_images)
+        unlinked = re.sub(r"[*•|\-\s]+", " ", unlinked).strip()
+        if no_images != block or _MD_LINK_RE.search(no_images):
+            # Keep bylines ("By [Name](...)"), drop pure link rails.
+            if len(unlinked.split()) < 3 and not re.match(r"^By\b", flattened):
+                continue
+        if not flattened:
+            continue
+        line = re.sub(r"\s+", " ", flattened)
+        heading = _MD_HEADING_RE.match(line)
+        if heading:
+            level = len(heading.group(1))
+            blocks.append(f"<h{level}>{html_lib.escape(heading.group(2))}</h{level}>")
+        elif _MD_BULLET_RE.match(line):
+            blocks.append(f"<li>{html_lib.escape(_MD_BULLET_RE.sub('', line))}</li>")
+        else:
+            blocks.append(f"<p>{html_lib.escape(line.strip('*_ '))}</p>")
+
+    meta = f'<meta property="og:title" content="{html_lib.escape(title, quote=True)}">'
+    if published:
+        meta += f'<meta property="article:published_time" content="{html_lib.escape(published, quote=True)}">'
+    html = (
+        f"<html><head><title>{html_lib.escape(title)}</title>{meta}</head>"
+        f"<body><article>{''.join(blocks)}</article></body></html>"
+    )
+    return html, paywall_truncated
+
+
 MIRROR_PROVIDERS: List[Dict[str, Any]] = [
     {
         "id": "direct",
@@ -102,6 +179,33 @@ MIRROR_PROVIDERS: List[Dict[str, Any]] = [
 ]
 
 
+WAYBACK_AVAILABILITY_API = "https://archive.org/wayback/available"
+
+
+async def _wayback_snapshot_url(
+    client: httpx.AsyncClient, target_url: str, timeout_sec: float
+) -> Optional[str]:
+    """
+    Asks the Wayback availability API for the closest snapshot of `target_url`.
+
+    The `/web/2/<url>` shortcut can transiently 404 for fresh captures that the
+    availability index already lists, so this is used as a fallback.
+    """
+    try:
+        resp = await client.get(
+            WAYBACK_AVAILABILITY_API, params={"url": target_url}, timeout=timeout_sec
+        )
+        closest = (resp.json().get("archived_snapshots") or {}).get("closest") or {}
+    except Exception:
+        return None
+    snap = closest.get("url")
+    if not closest.get("available") or not isinstance(snap, str):
+        return None
+    if not snap.startswith("http://web.archive.org/") and not snap.startswith("https://web.archive.org/"):
+        return None
+    return "https://" + snap.split("://", 1)[1]
+
+
 async def _probe_single_mirror(
     provider: Dict[str, Any],
     target_url: str,
@@ -114,6 +218,10 @@ async def _probe_single_mirror(
 
     try:
         resp = await client.get(req_url, headers=BROWSER_HEADERS, timeout=timeout_sec)
+        if source_id == "wayback" and resp.status_code == 404:
+            snapshot_url = await _wayback_snapshot_url(client, target_url, timeout_sec)
+            if snapshot_url:
+                resp = await client.get(snapshot_url, headers=BROWSER_HEADERS, timeout=timeout_sec)
         latency_ms = int((time.perf_counter() - start_ts) * 1000)
 
         if resp.status_code != 200 or not resp.text.strip():
@@ -127,10 +235,18 @@ async def _probe_single_mirror(
             }
 
         raw_body = resp.text
+        paywall_truncated = False
         if provider.get("is_plain_text") and "<html" not in raw_body.lower():
-            raw_body = _wrap_plain_text_as_html(raw_body, target_url)
+            if "Markdown Content:" in raw_body:
+                raw_body, paywall_truncated = parse_jina_reader_output(raw_body, target_url)
+            else:
+                raw_body = _wrap_plain_text_as_html(raw_body, target_url)
 
         extracted = sanitize_and_extract_html(raw_body, url=target_url, source_used=source_id)
+        if paywall_truncated:
+            extracted["paywall_detected"] = True
+            # Real article lede cut off at a subscription prompt (not a captcha page).
+            extracted["paywall_preview"] = True
         score = score_extraction_candidate(extracted)
         return {
             "source": source_id,
@@ -234,6 +350,19 @@ async def extract_from_url(
         if a.get("document") and a.get("word_count", 0) > 0 and a.get("score", 0) > 0
     ]
     valid_attempts.sort(key=lambda a: (-a["score"], a["latency_ms"]))
+
+    if not valid_attempts:
+        # Nothing scored above zero, but a flagged paywall preview is still more
+        # useful than an error: return it so the reader can label it as such.
+        previews = [
+            a
+            for a in attempts
+            if a.get("document")
+            and a["document"].get("paywall_preview")
+            and a.get("word_count", 0) > 0
+        ]
+        previews.sort(key=lambda a: (-a["word_count"], a["latency_ms"]))
+        valid_attempts = previews[:1]
 
     if not valid_attempts:
         raise RuntimeError(

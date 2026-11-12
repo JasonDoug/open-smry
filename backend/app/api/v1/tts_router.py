@@ -34,6 +34,8 @@ class TTSVoicesResponse(BaseModel):
 
 
 class TTSSynthesizeRequest(BaseModel):
+    """Narration request: text (≤10k chars), platform voice id, and speed."""
+
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
