@@ -159,12 +159,35 @@
           <div class="article-byline" id="article-byline">
             Paste any article, paywalled link, YouTube URL, or upload a book to begin reading without ads, cookie popups, or soft paywalls.
           </div>
+
+          <!-- Karaoke TTS controls -->
+          <div class="karaoke-controls">
+            <button type="button" id="karaoke-toggle-btn" class="btn-secondary" title="Listen with karaoke word-by-word highlighting">
+              🔊 Listen
+            </button>
+            <select id="karaoke-voice-select" aria-label="Narration voice" title="Narration voice">
+              <option value="aria-us-f">Aria (US · F)</option>
+              <option value="marcus-us-m">Marcus (US · M)</option>
+              <option value="elena-uk-f">Elena (UK · F)</option>
+              <option value="arthur-uk-m">Arthur (UK · M)</option>
+              <option value="chloe-au-f">Chloe (AU · F)</option>
+              <option value="liam-au-m">Liam (AU · M)</option>
+              <option value="kavya-in-f">Kavya (IN · F)</option>
+              <option value="rohan-in-m">Rohan (IN · M)</option>
+              <option value="claire-eu-f">Claire (IE/EU · F)</option>
+              <option value="mateo-ca-m">Mateo (CA · M)</option>
+            </select>
+            <span id="karaoke-status" class="muted-micro"></span>
+          </div>
         </header>
 
         <div class="karaoke-hint" id="karaoke-hint">
           💡 <strong>Reader Mode Active:</strong> Paste any web URL above or click <strong>📖 Book</strong> to ingest PDFs/EPUBs. The multi-mirror engine automatically races sources and strips clutter. Use <strong>⚙️ Settings</strong> to change fonts (including OpenDyslexic), themes, AI provider, and API keys.
         </div>
 
+        <div id="paywall-notice" class="paywall-notice hidden" role="note">
+          🔒 Only a paywalled preview was available from every source — the full article could not be retrieved.
+        </div>
         <div id="article-body" class="article-body">
           <p class="welcome-intro">
             <strong>open-smry</strong> is your distraction-free intelligence and reading companion.
@@ -311,6 +334,24 @@
       </div>
     </aside>
   </main>
+
+  <!-- Floating Karaoke Audio Player -->
+  <div id="karaoke-player" class="karaoke-player hidden" role="region" aria-label="Audio player">
+    <button type="button" id="karaoke-back-btn" class="btn-icon" title="Back 10 seconds">⏪</button>
+    <button type="button" id="karaoke-play-btn" class="btn-primary" title="Play / Pause">▶</button>
+    <button type="button" id="karaoke-fwd-btn" class="btn-icon" title="Forward 10 seconds">⏩</button>
+    <input type="range" id="karaoke-scrubber" min="0" max="1000" value="0" aria-label="Playback position" />
+    <span id="karaoke-time" class="karaoke-time">0:00 / 0:00</span>
+    <select id="karaoke-speed-select" aria-label="Playback speed" title="Playback speed">
+      <option value="0.5">0.5x</option>
+      <option value="0.75">0.75x</option>
+      <option value="1" selected>1x</option>
+      <option value="1.25">1.25x</option>
+      <option value="1.5">1.5x</option>
+      <option value="2">2x</option>
+    </select>
+    <button type="button" id="karaoke-close-btn" class="btn-icon" title="Close player">✕</button>
+  </div>
 
   <!-- Toast Notification -->
   <div id="toast-notification" class="toast-notification hidden" role="status" aria-live="polite"></div>

@@ -36,6 +36,8 @@ PAYWALL_BOILERPLATE_PATTERNS = [
     re.compile(r"please enable javascript and disable any ad blocker", re.IGNORECASE),
     re.compile(r"verify you are human", re.IGNORECASE),
     re.compile(r"create a free account to continue reading", re.IGNORECASE),
+    re.compile(r"subscribe for unlimited access", re.IGNORECASE),
+    re.compile(r"already a subscriber\?", re.IGNORECASE),
 ]
 
 REDIRECT_INTERSTITIAL_PATTERNS = [
@@ -91,6 +93,52 @@ CHALLENGE_PARAGRAPH_PATTERNS = [
     re.compile(r"disable any ad blockers", re.IGNORECASE),
     re.compile(r"may be due to a browser extension", re.IGNORECASE),
 ]
+
+
+# Screen-reader-only helper text ("Footnote ", "Opens in new window", ...).
+SR_ONLY_CLASSES = {"show-for-sr", "sr-only", "visually-hidden", "screen-reader-text", "screenreader-only", "a11y-hidden"}
+# Footnote/endnote anchors only ("#fn2", "#footnote-3"); NOT bibliography
+# links ("#ref12"), whose visible text is a citation year that must be kept.
+FOOTNOTE_HREF_RE = re.compile(r"^#(fn|footnote|endnote|note)[-_:]?\d+$", re.IGNORECASE)
+_SPACE_BEFORE_PUNCT_RE = re.compile(r"\s+([.,;:!?%)\]”])")
+_SPACE_AFTER_OPEN_RE = re.compile(r"([(\[‘“])\s+")
+
+
+def tidy_inline_spacing(text: str) -> str:
+    """
+    Collapses whitespace and removes the stray spaces that ``get_text(" ")``
+    inserts at inline-tag boundaries, e.g. ``<em>b.c.e</em>.`` -> "b.c.e ."
+    or "( Photograph )".
+    """
+    text = re.sub(r"\s+", " ", text).strip()
+    text = _SPACE_BEFORE_PUNCT_RE.sub(r"\1", text)
+    return _SPACE_AFTER_OPEN_RE.sub(r"\1", text)
+
+
+def _strip_reference_markers(soup: BeautifulSoup) -> int:
+    """
+    Removes screen-reader-only spans and in-text footnote reference links
+    (``<a href="#fn2"><sup>1</sup></a>``), which read as "Footnote 1" noise
+    in reader mode. Returns the number of removed elements.
+    """
+    removed = 0
+    for tag in list(soup.find_all(True)):
+        if not isinstance(tag, Tag) or tag.attrs is None:
+            continue
+        classes = tag.get("class") or []
+        if isinstance(classes, str):
+            classes = classes.split()
+        if SR_ONLY_CLASSES.intersection(c.lower() for c in classes):
+            tag.decompose()
+            removed += 1
+    for link in list(soup.find_all("a", href=FOOTNOTE_HREF_RE)):
+        if not isinstance(link, Tag) or link.attrs is None:
+            continue
+        # Only bare numeric/symbol markers ("1", "12", "*"), never linked prose.
+        if re.fullmatch(r"[\d*†‡]{1,3}", link.get_text(strip=True)):
+            link.decompose()
+            removed += 1
+    return removed
 
 
 def _is_boilerplate_paragraph(text: str, limit: int = 140) -> bool:
@@ -252,7 +300,7 @@ def sanitize_and_extract_html(
         or url
         or "Untitled Article"
     )
-    title = re.sub(r"\s+", " ", html_lib.unescape(raw_title)).strip()
+    title = tidy_inline_spacing(html_lib.unescape(raw_title))
 
     author = (
         _extract_meta(soup, "name", "author")
@@ -301,6 +349,9 @@ def sanitize_and_extract_html(
     # 2. Remove comments
     for comment in soup.find_all(string=lambda text: isinstance(text, Comment)):
         comment.extract()
+
+    # 2b. Strip screen-reader-only text and footnote reference markers
+    stripped_count += _strip_reference_markers(soup)
 
     # 3. Strip unwanted tags (<script>, <style>, <iframe>, <nav>, <footer>, <aside>, etc.)
     for tag in soup.find_all(STRIP_TAGS):
@@ -392,7 +443,7 @@ def sanitize_and_extract_html(
     for node in content_tags:
         if not isinstance(node, Tag):
             continue
-        text_val = re.sub(r"\s+", " ", node.get_text(" ", strip=True)).strip()
+        text_val = tidy_inline_spacing(node.get_text(" ", strip=True))
         if not text_val:
             continue
         # Skip short paywall/cookie/anti-bot boilerplate paragraphs
@@ -445,7 +496,7 @@ def sanitize_and_extract_html(
                 traf_text = scope.get_text("\n\n", strip=True)
 
         for raw_para in re.split(r"\n\s*\n", traf_text):
-            cleaned = re.sub(r"\s+", " ", raw_para).strip()
+            cleaned = tidy_inline_spacing(raw_para)
             if not cleaned:
                 continue
             if _is_boilerplate_paragraph(cleaned):

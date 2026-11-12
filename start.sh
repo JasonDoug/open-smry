@@ -21,6 +21,12 @@ if ! command -v uv >/dev/null 2>&1; then
   echo "ERROR: uv not found on PATH" >&2
   exit 1
 fi
+# setsid (util-linux) detaches services from this shell's session so they
+# survive it exiting. It is absent on stock macOS — fail before launching.
+if ! command -v setsid >/dev/null 2>&1; then
+  echo "ERROR: setsid not found on PATH (install util-linux; on macOS: brew install util-linux)" >&2
+  exit 1
+fi
 
 # Don't start if already running (tracked PIDs).
 if [[ -f "$PID_API" ]] && kill -0 "$(cat "$PID_API")" 2>/dev/null; then
@@ -59,13 +65,23 @@ for port in 8001 3333; do
 done
 
 echo "Starting Summary AI backend (FastAPI) on http://localhost:8001..."
-pnpm run dev:api > "$RUNTIME_DIR/api.log" 2>&1 &
+setsid pnpm run dev:api > "$RUNTIME_DIR/api.log" 2>&1 < /dev/null &
 echo $! > "$PID_API"
 
 # Pin the web server's port so an exported PORT (used by the backend) cannot move it.
 echo "Starting Summary AI web server on http://localhost:3333..."
-PORT=3333 pnpm run dev:web > "$RUNTIME_DIR/web.log" 2>&1 &
+setsid env PORT=3333 pnpm run dev:web > "$RUNTIME_DIR/web.log" 2>&1 < /dev/null &
 echo $! > "$PID_WEB"
+
+# Don't report success if either launcher died immediately.
+sleep 1
+for svc in "backend:$PID_API:api.log" "web server:$PID_WEB:web.log"; do
+  IFS=: read -r name pid_file log <<< "$svc"
+  if ! kill -0 "$(cat "$pid_file")" 2>/dev/null; then
+    echo "ERROR: $name failed to start — see $RUNTIME_DIR/$log" >&2
+    exit 1
+  fi
+done
 
 echo ""
 echo "Started:"

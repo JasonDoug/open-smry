@@ -83,6 +83,7 @@ def _persist_extracted_document(
         source_score=float(extracted.get("source_score", 0.0)),
         source_attempts_json=json.dumps(source_attempts),
         saved_in_library=save_to_library,
+        paywall_detected=bool(extracted.get("paywall_detected")),
         tags_json=json.dumps(tag_list),
     )
     db.add(doc)
@@ -156,6 +157,7 @@ def _document_to_response(
         source_score=doc.source_score,
         source_attempts=[SourceAttemptSchema(**a) for a in attempts_raw],
         saved_in_library=doc.saved_in_library,
+        paywall_detected=bool(doc.paywall_detected),
         tags=tags_raw,
         passages=[
             PassageChunkSchema(

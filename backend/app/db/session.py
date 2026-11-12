@@ -48,6 +48,7 @@ def _migrate_schema(engine: Engine) -> None:
         },
         "documents": {
             "image_url": "VARCHAR(2048)",
+            "paywall_detected": "BOOLEAN NOT NULL DEFAULT 0",
         },
     }
     for table_name, additions in plans.items():

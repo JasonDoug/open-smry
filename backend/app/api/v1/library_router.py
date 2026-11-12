@@ -151,6 +151,12 @@ def delete_library_document(
             detail=f"Document '{document_id}' not found",
         )
     title = doc.title
+    # SQLite does not enforce ON DELETE CASCADE here (foreign_keys pragma is
+    # off), and ReadingHistory has no ORM cascade — delete its rows explicitly
+    # so history never links to a removed document.
+    db.query(ReadingHistory).filter(ReadingHistory.document_id == document_id).delete(
+        synchronize_session=False
+    )
     db.delete(doc)
     db.commit()
     return {
